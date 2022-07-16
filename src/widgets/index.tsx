@@ -1,43 +1,45 @@
-import { declareIndexPlugin, ReactRNPlugin, WidgetLocation } from '@remnote/plugin-sdk';
+import { declareIndexPlugin, ReactRNPlugin } from '@remnote/plugin-sdk';
 import '../style.css';
 import '../App.css';
+import { PublicClientApplication } from '@azure/msal-browser';
+import { MsalAuthenticationProvider, msalConfig } from '../utils/auth';
+import { Client } from '@microsoft/microsoft-graph-client';
 
 async function onActivate(plugin: ReactRNPlugin) {
-  // Register settings
   await plugin.settings.registerStringSetting({
-    id: 'name',
-    title: 'What is your Name?',
-    defaultValue: 'Bob',
+    id: 'clientID',
+    title: 'Application (client) ID',
+    defaultValue: ''
   });
 
-  await plugin.settings.registerBooleanSetting({
-    id: 'pizza',
-    title: 'Do you like pizza?',
-    defaultValue: true,
-  });
-
-  await plugin.settings.registerNumberSetting({
-    id: 'favorite-number',
-    title: 'What is your favorite number?',
-    defaultValue: 42,
-  });
-
-  // A command that inserts text into the editor if focused.
   await plugin.app.registerCommand({
-    id: 'editor-command',
-    name: 'Editor Command',
+    id: 'syncAllTasks',
+    name: 'Sync All Tasks',
+    quickCode: 'sat',
     action: async () => {
-      plugin.editor.insertPlainText('Hello World!');
-    },
-  });
 
-  // Show a toast notification to the user.
-  await plugin.app.toast("I'm a toast!");
+      const clientId = await plugin.settings.getSetting('clientID') as string;
 
-  // Register a sidebar widget.
-  await plugin.app.registerWidget('sample_widget', WidgetLocation.RightSidebar, {
-    dimensions: { height: 'auto', width: '100%' },
-  });
+      if (clientId == '') {
+        await plugin.app.toast('Please specify clientID in plugin setting first!');
+        return;
+      }
+
+      msalConfig.auth.clientId = clientId;
+      const msal = new PublicClientApplication(msalConfig);
+
+      const authProvider = new MsalAuthenticationProvider({
+        scopes: ["Mail.Read"] // TODO
+      }, msal);
+
+      const graphClient = Client.initWithMiddleware({ authProvider });
+
+      // test fetch
+      graphClient.api('/me/messages').get()
+        .then((response) => alert(JSON.stringify(response)))
+        .catch((error) => alert(error));
+    }
+  })
 }
 
 async function onDeactivate(_: ReactRNPlugin) {}

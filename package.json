@@ -9,6 +9,9 @@
     "build": "rm -rf dist && cross-env NODE_ENV=production webpack --color --progress && cd dist && zip -r ../PluginZip.zip ./*"
   },
   "dependencies": {
+    "@azure/msal-browser": "^2.16.0",
+    "@azure/msal-react": "^1.0.1",
+    "@microsoft/microsoft-graph-client": "^2.2.1",
     "@remnote/plugin-sdk": "^0.0.5",
     "react": "^17.0.2",
     "react-dom": "^17.0.2"

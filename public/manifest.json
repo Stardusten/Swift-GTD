@@ -1,8 +1,8 @@
 {
   "manifestVersion": 1,
-  "id": "plugin_template",
-  "name": "Plugin Template",
-  "author": "remnote",
+  "id": "swift-gtd",
+  "name": "Swift GTD",
+  "author": "stardust",
   "repoUrl": "",
   "version": {
     "major": 0,

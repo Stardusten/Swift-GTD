@@ -4,6 +4,7 @@ import {
   InteractionType, PublicClientApplication,
 } from '@azure/msal-browser';
 import { AuthenticationProvider, AuthenticationProviderOptions, Client } from '@microsoft/microsoft-graph-client';
+import { usePlugin, useRunAsync } from '@remnote/plugin-sdk';
 
 export const msalConfig: Configuration = {
   auth: {

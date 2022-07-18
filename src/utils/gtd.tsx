@@ -32,7 +32,23 @@ export const getStatusName = async (rem: Rem) => {
   return statusSlot.trim();
 }
 
-export const toggleToTask = async (plugin: RNPlugin) => {
+export const padStatusName = (statusName: string) => {
+  switch (statusName) {
+    case 'Scheduled': return statusName;
+    case 'Done': return statusName + '         ';
+    case 'Ready': return statusName + '        ';
+    case 'Now': return statusName + '           ';
+    case 'Cancelled': return statusName + '  ';
+    default:
+      throw Error('Invalid statusName ' + statusName);
+  }
+}
+
+/**
+ * @param ifIsTask what to do if focused rem is already a task (has task powerup)
+ * @param ifNotTask what to do if focused rem is NOT a task (has task powerup). do nothing by default.
+ */
+export const prevCheck = async (plugin: RNPlugin, ifIsTask: Function, ifNotTask?: Function) => {
 
   const focusedRem = await getFocusedRem(plugin);
 
@@ -41,229 +57,49 @@ export const toggleToTask = async (plugin: RNPlugin) => {
     return;
   }
 
-  if (await focusedRem.hasPowerup('taskPowerup')) {
-    await plugin.app.toast('Focused rem is already a task.');
+  if (!(await focusedRem.hasPowerup('taskPowerup')) && ifNotTask) {
+    await ifNotTask(plugin, focusedRem);
     return;
   }
 
-  await focusedRem.addPowerup('taskPowerup');
-
-  // initial status: Later
-  await setStatus(focusedRem, 'Later', plugin);
-
-  // record createTime
-  const now = [new Date().toUTCString()];
-  await focusedRem.setPowerupProperty('taskPowerup', 'createTime', now);
+  await ifIsTask(plugin, focusedRem);
 }
 
-export const toggleTaskDone = async (plugin: RNPlugin) => {
+export const createNewTask = async (plugin: RNPlugin) => {
+  await prevCheck(
+    plugin,
+    async (plugin: RNPlugin, focusedRem: Rem) => {
+      await plugin.app.toast('Focused rem is already a task.');
+    },
+    async (plugin: RNPlugin, focusedRem: Rem) => {
+      // add taskPowerup
+      await focusedRem.addPowerup('taskPowerup');
 
-  const focusedRem = await getFocusedRem(plugin);
+      // set status to "Scheduled"
+      await setStatus(focusedRem, 'Scheduled', plugin);
 
-  if (!focusedRem) {
-    await plugin.app.toast('You are not focus at any rem.');
-    return;
-  }
-
-  if (!(await focusedRem.hasPowerup('taskPowerup'))) {
-    await plugin.app.toast('Focused rem is not a task.');
-    return;
-  }
-
-  switch (await getStatusName(focusedRem)) {
-
-    case 'Done': {
-      await plugin.app.toast('Focused rem is already done.');
-      return;
-    }
-
-    case 'Now': {
-      await plugin.app.toast('You finish a task.');
-
-      // toggle to Done status
-      await setStatus(focusedRem, 'Done', plugin);
-
-      // record finishTime
-      const now = new Date();
-      await focusedRem.setPowerupProperty('taskPowerup', 'finishTime', [now.toUTCString()]);
-
-      const startTimeStr = await focusedRem.getPowerupProperty('taskPowerup', 'startTime');
-
-      if (!startTimeStr) {
-        // TODO
-      }
-
-      const startTime = new Date(startTimeStr);
-      await focusedRem.setPowerupProperty('taskPowerup', 'duration', [getDateDuration(startTime, now)]);
-
-      return;
-    }
-
-    case 'Later':
-    case 'Cancelled': {
-      // Now status is skipped!!
-      await plugin.app.toast('You finish a task.');
-
-      // toggle to Done status
-      await setStatus(focusedRem, 'Done', plugin);
-
-      // record startTime & finishTime
-      const now = new Date();
-      await focusedRem.setPowerupProperty('taskPowerup', 'startTime', [now.toUTCString()]);
-      await focusedRem.setPowerupProperty('taskPowerup', 'finishTime', [now.toUTCString()]);
-      await focusedRem.setPowerupProperty('taskPowerup', 'duration', ['0s']);
-      return;
-    }
-  }
+      // add create log
+      let timeLog = `\n[${new Date().toLocaleString()}]   Scheduled`;
+      await focusedRem.setPowerupProperty('taskPowerup', 'timeLog', [timeLog]);
+  });
 }
 
-export const toggleTaskNow = async (plugin: RNPlugin) => {
+export const toggleToStatus = async (plugin: RNPlugin, newStatus: string) => {
+  await prevCheck(
+    plugin,
+    async (plugin: RNPlugin, focusedRem: Rem) => {
 
-  const focusedRem = await getFocusedRem(plugin);
+      // get now status
+      const nowStatus = await getStatusName(focusedRem);
 
-  if (!focusedRem) {
-    await plugin.app.toast('You are not focus at any rem.');
-    return;
-  }
+      // set new status
+      await setStatus(focusedRem, newStatus, plugin);
 
-  if (!(await focusedRem.hasPowerup('taskPowerup'))) {
-    await plugin.app.toast('Focused rem is not a task.');
-    return;
-  }
-
-  switch (await getStatusName(focusedRem)) {
-
-    case 'Now': {
-      await plugin.app.toast('Focused task is already in Now status.');
-      return;
+      // add log
+      let timeLog = await focusedRem.getPowerupProperty('taskPowerup', 'timeLog');
+      timeLog += `\n[${new Date().toLocaleString()}]   ${padStatusName(nowStatus)}   →   ${padStatusName(newStatus)}`;
+      await focusedRem.setPowerupProperty('taskPowerup', 'timeLog', [timeLog]);
     }
-
-    case 'Later': {
-      await plugin.app.toast('Start doing a task!');
-
-      // toggle to Now status
-      await setStatus(focusedRem, 'Now', plugin);
-
-      // if startTime is never recorded, record it
-      const now = new Date();
-      const oldStartTime = await focusedRem.getPowerupProperty('taskPowerup', 'startTime');
-      if (!oldStartTime || oldStartTime.trim() === '') {
-        await focusedRem.setPowerupProperty('taskPowerup', 'startTime', [now.toUTCString()]);
-      }
-
-      return;
-    }
-
-    case 'Cancelled': {
-
-      await plugin.app.toast('Restart a task!');
-
-      // toggle to Now status
-      await setStatus(focusedRem, 'Now', plugin);
-
-      // if startTime is never recorded, record it
-      const now = new Date();
-      const oldStartTime = await focusedRem.getPowerupProperty('taskPowerup', 'startTime');
-      if (!oldStartTime || oldStartTime.trim() === '') {
-        await focusedRem.setPowerupProperty('taskPowerup', 'startTime', [now.toUTCString()]);
-      }
-      return;
-    }
-
-    case 'Done': {
-
-      await plugin.app.toast('Focused task is Done before. Continue working on it.');
-
-      // toggle to Now status
-      await setStatus(focusedRem, 'Now', plugin);
-
-      // append reopen annotation
-      const oldFinishTime = await focusedRem.getPowerupProperty('taskPowerup', 'finishTime');
-      await focusedRem.setPowerupProperty('taskPowerup', 'startTime', [oldFinishTime + ' (Before Reopen)']);
-    }
-  }
+  )
 }
 
-export const toggleTaskLater = async (plugin: RNPlugin) => {
-
-  const focusedRem = await getFocusedRem(plugin);
-
-  if (!focusedRem) {
-    await plugin.app.toast('You are not focus at any rem.');
-    return;
-  }
-
-  if (!(await focusedRem.hasPowerup('taskPowerup'))) {
-    await plugin.app.toast('Focused rem is not a task.');
-    return;
-  }
-
-  switch (await getStatusName(focusedRem)) {
-
-    case 'Later': {
-      await plugin.app.toast('Focused task is already in Later status.');
-      return;
-    }
-
-    case 'Now': {
-      await plugin.app.toast('Putting focused task on hold');
-
-      // toggle to Later status
-      await setStatus(focusedRem, 'Later', plugin);
-
-      return;
-    }
-
-    case 'Cancelled': {
-      await plugin.app.toast('Consider doing focused task later.');
-
-      // toggle to Later status
-      await setStatus(focusedRem, 'Later', plugin);
-
-      return;
-    }
-
-    case 'Done': {
-      await plugin.app.toast('Focused task is Done before. Restart it later.');
-
-      // toggle to Later status
-      await setStatus(focusedRem, 'Later', plugin);
-    }
-  }
-}
-
-export const toggleTaskCancelled = async (plugin: RNPlugin) => {
-
-  const focusedRem = await getFocusedRem(plugin);
-
-  if (!focusedRem) {
-    await plugin.app.toast('You are not focus at any rem.');
-    return;
-  }
-
-  if (!(await focusedRem.hasPowerup('taskPowerup'))) {
-    await plugin.app.toast('Focused rem is not a task.');
-    return;
-  }
-
-  switch (await getStatusName(focusedRem)) {
-
-    case 'Cancelled': {
-      await plugin.app.toast('Focused task is already in Cancelled status.');
-      return;
-    }
-
-    case 'Now':
-    case 'Later':
-    case 'Done': {
-      await plugin.app.toast('Focused task is cancelled.');
-
-      // toggle to Cancelled status
-      await setStatus(focusedRem, 'Cancelled', plugin);
-
-      // record cancelled time
-      const now = new Date();
-      await focusedRem.setPowerupProperty('taskPowerup', 'cancelledTime', [now.toUTCString()]);
-    }
-  }
-}

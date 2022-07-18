@@ -1,11 +1,11 @@
 import { declareIndexPlugin, ReactRNPlugin } from '@remnote/plugin-sdk';
 import '../style.css';
 import '../App.css';
-import { PublicClientApplication } from '@azure/msal-browser';
+import { createNewTask, prevCheck, toggleToStatus } from '../utils/gtd';
 import { MsalAuthenticationProvider, msalConfig } from '../utils/auth';
+import { PublicClientApplication } from '@azure/msal-browser';
+import { normalSync } from '../utils/sync';
 import { Client } from '@microsoft/microsoft-graph-client';
-import { toggleTaskCancelled, toggleTaskDone, toggleTaskLater, toggleTaskNow, toggleToTask } from '../utils/gtd';
-import { firstSync, normalSync } from '../utils/sync';
 
 async function onActivate(plugin: ReactRNPlugin) {
 
@@ -17,9 +17,9 @@ async function onActivate(plugin: ReactRNPlugin) {
 
   await plugin.settings.registerStringSetting({
     id: 'syncTaskListName',
-    title: 'Name of taskList that will be synced sync in Microsoft TODO.',
+    title: 'Sync Task List Name',
     defaultValue: 'RN Sync',
-  });
+  })
 
   await plugin.app.registerPowerup(
     'Task',
@@ -27,22 +27,15 @@ async function onActivate(plugin: ReactRNPlugin) {
     'Tag all your tasks with this powerup.',
     {
       slots: [
-        // DONE NOW LATER CANCELLED
         { code: 'status', name: 'Status' },
         { code: 'dateDue', name: 'Date Due'},
         { code: 'priority', name: 'Priority'},
-        { code: 'createTime', name: 'Create Time' },
-        { code: 'startTime', name: 'Start Time' },
-        { code: 'finishTime', name: 'Finish Time' },
-        { code: 'cancelledTime', name: 'Cancelled Time' },
-        { code: 'duration', name: 'Duration' },
-        { code: 'totalTime', name: 'Total Time' },
-        { code: 'timeLog', name: 'Time Log' }
+        { code: 'timeLog', name: 'timeLog' },
       ],
     }
   );
 
-  for (const statusName of ['Done', 'Now', 'Later', 'Cancelled']) {
+  for (const statusName of ['Done', 'Now', 'Ready', 'Scheduled', 'Cancelled']) {
     await plugin.app.registerPowerup(
       statusName,
       `status${statusName}`,
@@ -52,52 +45,58 @@ async function onActivate(plugin: ReactRNPlugin) {
   }
 
   await plugin.app.registerCommand({
-    id: 'toggleTask',
-    name: 'Toggle Task',
-    description: 'Convert focused rem to a task (tag with Task powerup and add all slots).',
-    quickCode: 'tt',
-    action: async () => { await toggleToTask(plugin); }
+    id: 'NewTask',
+    name: 'New Task',
+    quickCode: 'nt',
+    action: async () => { await createNewTask(plugin) }
   });
 
   await plugin.app.registerCommand({
-    id: 'toggleTaskDone',
-    name: 'Toggle Task Done',
-    description: '', // TODO
-    quickCode: 'ttd',
-    action: async () => { await toggleTaskDone(plugin); }
+    id: 'toggleToScheduled',
+    name: 'Toggle To Scheduled',
+    quickCode: 'ts',
+    action: async () => {
+      await prevCheck(plugin, toggleToStatus)
+    }
   });
 
   await plugin.app.registerCommand({
-    id: 'toggleTaskNow',
-    name: 'Toggle Task Now',
-    description: '', // TODO
-    quickCode: 'ttn',
-    action: async () => { await toggleTaskNow(plugin); }
+    id: 'toggleToReady',
+    name: 'Toggle To Ready',
+    quickCode: 'tr',
+    action: async () => { await toggleToStatus(plugin, 'Ready') }
   });
 
   await plugin.app.registerCommand({
-    id: 'toggleTaskLater',
-    name: 'Toggle Task Later',
-    description: '', // TODO
-    quickCode: 'ttl',
-    action: async () => { await toggleTaskLater(plugin); }
+    id: 'toggleToNow',
+    name: 'Toggle To Now',
+    quickCode: 'tn',
+    action: async () => { await toggleToStatus(plugin, 'Now') }
   });
 
   await plugin.app.registerCommand({
-    id: 'toggleTaskCancelled',
-    name: 'Toggle Task Cancelled',
-    description: '', // TODO
-    quickCode: 'ttc',
-    action: async () => { await toggleTaskCancelled(plugin); }
+    id: 'toggleToDone',
+    name: 'Toggle To Done',
+    quickCode: 'td',
+    action: async () => { await toggleToStatus(plugin, 'Done') }
   });
+
+  await plugin.app.registerCommand({
+    id: 'toggleToCancelled',
+    name: 'Toggle To Cancelled',
+    quickCode: 'tc',
+    action: async () => { await toggleToStatus(plugin, 'Cancelled') }
+  });
+
 
   /**
    * Since Microsoft Graph doesn't provide API to move a task to My Day,
    * we decide to map Now tasks to important tasks in Microsoft TO DO.
    *
-   * Done Tasks  <==> Finished Tasks
-   * Now Tasks   <==> Important Unfinished Tasks
-   * Later Tasks <==> Normal Unfinished Tasks
+   * Done Tasks         <==> Finished Tasks
+   * Now / Ready Tasks  <==> Important Unfinished Tasks
+   * Scheduled Tasks    <==> Normal Unfinished Tasks
+   * Cancelled Tasks    =x=  (won't be synced)
    */
   await plugin.app.registerCommand({
     id: 'syncAllTasks',

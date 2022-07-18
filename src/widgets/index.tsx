@@ -1,11 +1,18 @@
 import { declareIndexPlugin, ReactRNPlugin } from '@remnote/plugin-sdk';
 import '../style.css';
 import '../App.css';
-import { createNewTask, prevCheck, toggleToStatus } from '../utils/gtd';
+import {
+  newTask,
+  genAsciiProgressBar,
+  isTaskRem,
+  prevCheck,
+  toggleToStatus,
+} from '../utils/gtd';
 import { MsalAuthenticationProvider, msalConfig } from '../utils/auth';
 import { PublicClientApplication } from '@azure/msal-browser';
 import { normalSync } from '../utils/sync';
 import { Client } from '@microsoft/microsoft-graph-client';
+import { successors } from '../utils/rem';
 
 async function onActivate(plugin: ReactRNPlugin) {
 
@@ -19,6 +26,12 @@ async function onActivate(plugin: ReactRNPlugin) {
     id: 'syncTaskListName',
     title: 'Sync Task List Name',
     defaultValue: 'RN Sync',
+  });
+
+  await plugin.settings.registerStringSetting({
+    id: 'progressBarSymbol',
+    title: 'Progress Bar Symbol',
+    defaultValue: '●○'
   })
 
   await plugin.app.registerPowerup(
@@ -31,6 +44,7 @@ async function onActivate(plugin: ReactRNPlugin) {
         { code: 'dateDue', name: 'Date Due'},
         { code: 'priority', name: 'Priority'},
         { code: 'timeLog', name: 'timeLog' },
+        { code: 'progress', name: 'Progress' }
       ],
     }
   );
@@ -48,16 +62,14 @@ async function onActivate(plugin: ReactRNPlugin) {
     id: 'NewTask',
     name: 'New Task',
     quickCode: 'nt',
-    action: async () => { await createNewTask(plugin) }
+    action: async () => { await newTask(plugin) }
   });
 
   await plugin.app.registerCommand({
     id: 'toggleToScheduled',
     name: 'Toggle To Scheduled',
     quickCode: 'ts',
-    action: async () => {
-      await prevCheck(plugin, toggleToStatus)
-    }
+    action: async () => { await toggleToStatus(plugin, 'Scheduled') }
   });
 
   await plugin.app.registerCommand({
@@ -88,6 +100,14 @@ async function onActivate(plugin: ReactRNPlugin) {
     action: async () => { await toggleToStatus(plugin, 'Cancelled') }
   });
 
+  await plugin.app.registerCommand({
+    id: 'totalTime',
+    name: 'Total Time',
+    action: async () => {
+
+    }
+  })
+
 
   /**
    * Since Microsoft Graph doesn't provide API to move a task to My Day,
@@ -98,41 +118,41 @@ async function onActivate(plugin: ReactRNPlugin) {
    * Scheduled Tasks    <==> Normal Unfinished Tasks
    * Cancelled Tasks    =x=  (won't be synced)
    */
-  await plugin.app.registerCommand({
-    id: 'syncAllTasks',
-    name: 'Sync All Tasks to Microsoft TODO',
-    description: '', // TODO
-    action: async () => {
-
-      const clientId = await plugin.settings.getSetting('clientID') as string;
-
-      if (clientId == '') {
-        await plugin.app.toast('Please specify clientID in plugin setting first!');
-        return;
-      }
-
-      msalConfig.auth.clientId = clientId;
-      const msal = new PublicClientApplication(msalConfig);
-
-      const authProvider = new MsalAuthenticationProvider({
-        scopes: ["Tasks.ReadWrite"] // TODO
-      }, msal);
-
-      const graphClient = Client.initWithMiddleware({ authProvider });
-
-      // name of taskList that will be synced sync in Microsoft TODO
-      const syncTaskListName = await plugin.settings.getSetting('syncTaskListName');
-
-      // fetch all the task lists
-      const taskLists = await graphClient.api('/me/todo/lists').get();
-      for (const taskList of taskLists.value) {
-        // find taskList to be synced
-        if (taskList.displayName === syncTaskListName) {
-          await normalSync(graphClient, taskList, plugin);
-        }
-      }
-    }
-  });
+  // await plugin.app.registerCommand({
+  //   id: 'syncAllTasks',
+  //   name: 'Sync All Tasks to Microsoft TODO',
+  //   description: '', // TODO
+  //   action: async () => {
+  //
+  //     const clientId = await plugin.settings.getSetting('clientID') as string;
+  //
+  //     if (clientId == '') {
+  //       await plugin.app.toast('Please specify clientID in plugin setting first!');
+  //       return;
+  //     }
+  //
+  //     msalConfig.auth.clientId = clientId;
+  //     const msal = new PublicClientApplication(msalConfig);
+  //
+  //     const authProvider = new MsalAuthenticationProvider({
+  //       scopes: ["Tasks.ReadWrite"] // TODO
+  //     }, msal);
+  //
+  //     const graphClient = Client.initWithMiddleware({ authProvider });
+  //
+  //     // name of taskList that will be synced sync in Microsoft TODO
+  //     const syncTaskListName = await plugin.settings.getSetting('syncTaskListName');
+  //
+  //     // fetch all the task lists
+  //     const taskLists = await graphClient.api('/me/todo/lists').get();
+  //     for (const taskList of taskLists.value) {
+  //       // find taskList to be synced
+  //       if (taskList.displayName === syncTaskListName) {
+  //         await normalSync(graphClient, taskList, plugin);
+  //       }
+  //     }
+  //   }
+  // });
 }
 
 async function onDeactivate(_: ReactRNPlugin) {}

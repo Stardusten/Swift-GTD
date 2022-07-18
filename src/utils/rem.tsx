@@ -1,4 +1,4 @@
-import { BuiltInPowerupCodes, RNPlugin } from '@remnote/plugin-sdk';
+import { BuiltInPowerupCodes, Rem, RNPlugin } from '@remnote/plugin-sdk';
 
 export const getFocusedRem = async (plugin: RNPlugin) => {
   const focusedRemId = await plugin.focus.getFocusedRemId();
@@ -22,4 +22,16 @@ export const getDailyDocumentName = (date: Date) => {
   const month = date.getUTCMonth();
   const day = date.getUTCDate();
   return `${months[month]} ${day}${ordinal(day)}, ${year}`;
+}
+
+/**
+ * Get a generator that will yield all the successors of a rem from its direct parent.
+ */
+export async function* successors(rem: Rem) {
+  let x: Rem | undefined = rem;
+  for (;;) {
+    x = await x?.getParentRem();
+    if (x) yield x;
+    else return;
+  }
 }

@@ -11,7 +11,7 @@ export const msalConfig: Configuration = {
     clientId: '',
     authority: 'https://login.microsoftonline.com/common',
     // TODO where should I redirect to?
-    redirectUri: 'https://new.remnote.com/',
+    redirectUri: 'https://new.remnote.com',
     navigateToLoginRequestUrl: true,
   },
   cache: {

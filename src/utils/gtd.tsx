@@ -1,5 +1,5 @@
 import { Rem, RemId, RichTextInterface, RNPlugin } from '@remnote/plugin-sdk';
-import { getFocusedRem } from './rem';
+import { getFocusedRem, successors } from './rem';
 
 const getDateDuration = (date1: Date, date2: Date) => {
   const diffDate = new Date(date2.getTime() - date1.getTime());
@@ -20,6 +20,19 @@ const getDateDuration = (date1: Date, date2: Date) => {
   if (diffSecond > 0) result += diffSecond + 's';
 
   return result;
+}
+
+export const isTaskRem = async (rem: Rem) => {
+  return await rem.hasPowerup('taskPowerup');
+}
+
+/**
+ * Generate ASCII progress bar. e.g. ★★★★★★★☆☆☆
+ */
+export const genAsciiProgressBar = (percentage: number, progressBarSymbol: string) => {
+  const countSymbol = Math.floor(percentage * 10);
+  return progressBarSymbol[0].repeat(countSymbol) +
+    progressBarSymbol[1].repeat(10 - countSymbol);
 }
 
 export const setStatus = async (rem: Rem, statusName: string, plugin: RNPlugin) => {
@@ -57,16 +70,18 @@ export const prevCheck = async (plugin: RNPlugin, ifIsTask: Function, ifNotTask?
     return;
   }
 
-  if (!(await focusedRem.hasPowerup('taskPowerup')) && ifNotTask) {
+  if (!(await isTaskRem(focusedRem)) && ifNotTask) {
     await ifNotTask(plugin, focusedRem);
     return;
   }
 
   await ifIsTask(plugin, focusedRem);
+
+  return focusedRem;
 }
 
-export const createNewTask = async (plugin: RNPlugin) => {
-  await prevCheck(
+export const newTask = async (plugin: RNPlugin) => {
+  return await prevCheck(
     plugin,
     async (plugin: RNPlugin, focusedRem: Rem) => {
       await plugin.app.toast('Focused rem is already a task.');
@@ -81,6 +96,9 @@ export const createNewTask = async (plugin: RNPlugin) => {
       // add create log
       let timeLog = `\n[${new Date().toLocaleString()}]   Scheduled`;
       await focusedRem.setPowerupProperty('taskPowerup', 'timeLog', [timeLog]);
+
+      // handle progress bar
+      await newTaskProgressUpdate(focusedRem, plugin);
   });
 }
 
@@ -99,7 +117,83 @@ export const toggleToStatus = async (plugin: RNPlugin, newStatus: string) => {
       let timeLog = await focusedRem.getPowerupProperty('taskPowerup', 'timeLog');
       timeLog += `\n[${new Date().toLocaleString()}]   ${padStatusName(nowStatus)}   →   ${padStatusName(newStatus)}`;
       await focusedRem.setPowerupProperty('taskPowerup', 'timeLog', [timeLog]);
+
+      // update status
+      await toggleStatusProgressUpdate(focusedRem, nowStatus, newStatus, plugin);
     }
   )
 }
 
+const newTaskProgressUpdate = async (taskRem: Rem, plugin: RNPlugin) => {
+  for await (const rem of successors(taskRem)) {
+    if (await isTaskRem(rem)) {
+      const progress = await rem.getPowerupProperty('taskPowerup', 'progress');
+      const progressBarSymbol = await plugin.settings.getSetting('progressBarSymbol') as string;
+      if (!progress) {
+        // has no subtask before
+        await rem.setPowerupProperty('taskPowerup', 'progress', [`${progressBarSymbol[1].repeat(10)}   [0/1]`]);
+      } else {
+        // extract the progress from property
+        const reg = /[★☆]*   \[(\d*)\/(\d*)]/;
+        const resultArr = reg.exec(progress);
+        if (resultArr) {
+          const finishedNum = parseInt(resultArr[1]);
+          const totalNum = parseInt(resultArr[2]) + 1;
+          const newProgress = genAsciiProgressBar(finishedNum / totalNum, progressBarSymbol) + `   [${finishedNum}/${totalNum}]`;
+          await rem.setPowerupProperty('taskPowerup', 'progress', [newProgress]);
+        } else {
+          await plugin.app.toast('ERROR | Invalid progress property.' + resultArr);
+        }
+      }
+      // only consider direct parent task
+      break;
+    }
+  }
+}
+
+export const toggleStatusProgressUpdate = async (taskRem: Rem, prevStatus: string, newStatus: string, plugin: RNPlugin) => {
+  // handle subtask
+  for await (const rem of successors(taskRem)) {
+    if (await isTaskRem(rem)) {
+      const progress = await rem.getPowerupProperty('taskPowerup', 'progress');
+      const progressBarSymbol = await plugin.settings.getSetting('progressBarSymbol') as string;
+      if (!progress) {
+        // TODO be deleted manually?
+      } else {
+        // extract the progress from property
+        const reg = /[★☆]*   \[(\d*)\/(\d*)]/;
+        const resultArr = reg.exec(progress);
+        if (resultArr) {
+          let finishedNum;
+          let totalNum;
+          if (newStatus == 'Done' && prevStatus != 'Cancelled') {
+            finishedNum = parseInt(resultArr[1]) + 1;
+            totalNum = parseInt(resultArr[2]);
+          } else if (newStatus == 'Done' && prevStatus == 'Cancelled') {
+            finishedNum = parseInt(resultArr[1]) + 1;
+            totalNum = parseInt(resultArr[2]) + 1;
+          } else if (newStatus == 'Cancelled' && prevStatus != 'Done') {
+            finishedNum = parseInt(resultArr[1]);
+            totalNum = parseInt(resultArr[2]) - 1;
+          } else if (newStatus == 'Cancelled' && prevStatus == 'Done') {
+            finishedNum = parseInt(resultArr[1]) - 1;
+            totalNum = parseInt(resultArr[2]) - 1;
+          } else if (newStatus != 'Cancelled' && prevStatus == 'Done') {
+            finishedNum = parseInt(resultArr[1]) - 1;
+            totalNum = parseInt(resultArr[2]);
+          } else {
+            finishedNum = parseInt(resultArr[1]);
+            totalNum = parseInt(resultArr[2]);
+          }
+          // update
+          const newProgress = genAsciiProgressBar(finishedNum / totalNum, progressBarSymbol) + `   [${finishedNum}/${totalNum}]`;
+          await rem.setPowerupProperty('taskPowerup', 'progress', [newProgress]);
+        } else {
+          await plugin.app.toast('ERROR | Invalid progress property.' + resultArr);
+        }
+      }
+      // only consider direct parent task
+      break;
+    }
+  }
+}

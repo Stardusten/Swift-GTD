@@ -102,26 +102,29 @@ export const newTask = async (plugin: RNPlugin) => {
   });
 }
 
-export const toggleToStatus = async (plugin: RNPlugin, newStatus: string) => {
+export const toggleFocusedToStatus = async (plugin: RNPlugin, newStatus: string) => {
   await prevCheck(
     plugin,
     async (plugin: RNPlugin, focusedRem: Rem) => {
-
-      // get now status
-      const nowStatus = await getStatusName(focusedRem);
-
-      // set new status
-      await setStatus(focusedRem, newStatus, plugin);
-
-      // add log
-      let timeLog = await focusedRem.getPowerupProperty('taskPowerup', 'timeLog');
-      timeLog += `\n[${new Date().toLocaleString()}]   ${padStatusName(nowStatus)}   →   ${padStatusName(newStatus)}`;
-      await focusedRem.setPowerupProperty('taskPowerup', 'timeLog', [timeLog]);
-
-      // update status
-      await toggleStatusProgressUpdate(focusedRem, nowStatus, newStatus, plugin);
+      await toggleToStatus(plugin, newStatus, focusedRem);
     }
   )
+}
+
+export const toggleToStatus = async (plugin: RNPlugin, newStatus: string, rem: Rem) => {
+  // get now status
+  const nowStatus = await getStatusName(rem);
+
+  // set new status
+  await setStatus(rem, newStatus, plugin);
+
+  // add log
+  let timeLog = await rem.getPowerupProperty('taskPowerup', 'timeLog');
+  timeLog += `\n[${new Date().toLocaleString()}]   ${padStatusName(nowStatus)}   →   ${padStatusName(newStatus)}`;
+  await rem.setPowerupProperty('taskPowerup', 'timeLog', [timeLog]);
+
+  // update status
+  await toggleStatusProgressUpdate(rem, nowStatus, newStatus, plugin);
 }
 
 const newTaskProgressUpdate = async (taskRem: Rem, plugin: RNPlugin) => {
@@ -188,6 +191,10 @@ export const toggleStatusProgressUpdate = async (taskRem: Rem, prevStatus: strin
           // update
           const newProgress = genAsciiProgressBar(finishedNum / totalNum, progressBarSymbol) + `   [${finishedNum}/${totalNum}]`;
           await rem.setPowerupProperty('taskPowerup', 'progress', [newProgress]);
+          // if all subtask finished
+          if (await rem.hasPowerup('automaticallyDone') && finishedNum == totalNum) {
+            await toggleToStatus(plugin, 'Done', rem);
+          }
         } else {
           await plugin.app.toast('ERROR | Invalid progress property.' + resultArr);
         }
@@ -197,3 +204,12 @@ export const toggleStatusProgressUpdate = async (taskRem: Rem, prevStatus: strin
     }
   }
 }
+
+// export const updateAllProgressBar = async (plugin: RNPlugin) => {
+//   return await prevCheck(
+//     plugin,
+//     async (plugin: RNPlugin, focusedRem: Rem) => {
+//
+//     }
+//   )
+// }

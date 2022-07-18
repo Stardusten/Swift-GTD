@@ -3,16 +3,8 @@ import '../style.css';
 import '../App.css';
 import {
   newTask,
-  genAsciiProgressBar,
-  isTaskRem,
-  prevCheck,
-  toggleToStatus,
+  toggleFocusedToStatus,
 } from '../utils/gtd';
-import { MsalAuthenticationProvider, msalConfig } from '../utils/auth';
-import { PublicClientApplication } from '@azure/msal-browser';
-import { normalSync } from '../utils/sync';
-import { Client } from '@microsoft/microsoft-graph-client';
-import { successors } from '../utils/rem';
 
 async function onActivate(plugin: ReactRNPlugin) {
 
@@ -32,7 +24,7 @@ async function onActivate(plugin: ReactRNPlugin) {
     id: 'progressBarSymbol',
     title: 'Progress Bar Symbol',
     defaultValue: '●○'
-  })
+  });
 
   await plugin.app.registerPowerup(
     'Task',
@@ -48,6 +40,13 @@ async function onActivate(plugin: ReactRNPlugin) {
       ],
     }
   );
+
+  await plugin.app.registerPowerup(
+    'Automatically Done',
+    'automaticallyDone',
+    'If a task is tagged with this powerup, then when all of its subtasks are finished, it will toggle to "Done" status automatically.',
+    { slots: [] }
+  )
 
   for (const statusName of ['Done', 'Now', 'Ready', 'Scheduled', 'Cancelled']) {
     await plugin.app.registerPowerup(
@@ -69,35 +68,35 @@ async function onActivate(plugin: ReactRNPlugin) {
     id: 'toggleToScheduled',
     name: 'Toggle To Scheduled',
     quickCode: 'ts',
-    action: async () => { await toggleToStatus(plugin, 'Scheduled') }
+    action: async () => { await toggleFocusedToStatus(plugin, 'Scheduled') }
   });
 
   await plugin.app.registerCommand({
     id: 'toggleToReady',
     name: 'Toggle To Ready',
     quickCode: 'tr',
-    action: async () => { await toggleToStatus(plugin, 'Ready') }
+    action: async () => { await toggleFocusedToStatus(plugin, 'Ready') }
   });
 
   await plugin.app.registerCommand({
     id: 'toggleToNow',
     name: 'Toggle To Now',
     quickCode: 'tn',
-    action: async () => { await toggleToStatus(plugin, 'Now') }
+    action: async () => { await toggleFocusedToStatus(plugin, 'Now') }
   });
 
   await plugin.app.registerCommand({
     id: 'toggleToDone',
     name: 'Toggle To Done',
     quickCode: 'td',
-    action: async () => { await toggleToStatus(plugin, 'Done') }
+    action: async () => { await toggleFocusedToStatus(plugin, 'Done') }
   });
 
   await plugin.app.registerCommand({
     id: 'toggleToCancelled',
     name: 'Toggle To Cancelled',
     quickCode: 'tc',
-    action: async () => { await toggleToStatus(plugin, 'Cancelled') }
+    action: async () => { await toggleFocusedToStatus(plugin, 'Cancelled') }
   });
 
   await plugin.app.registerCommand({

@@ -3,7 +3,7 @@ import '../style.css';
 import '../App.css';
 import {
   newTask,
-  toggleFocusedToStatus,
+  toggleFocusedToStatus, updateFocusedRemTreeProgress,
 } from '../utils/gtd';
 
 async function onActivate(plugin: ReactRNPlugin) {
@@ -100,12 +100,12 @@ async function onActivate(plugin: ReactRNPlugin) {
   });
 
   await plugin.app.registerCommand({
-    id: 'totalTime',
-    name: 'Total Time',
+    id: 'updateFocusedRemTreeProgress',
+    name: 'Update Focused Rem Tree Progress',
     action: async () => {
-
+      await updateFocusedRemTreeProgress(plugin);
     }
-  })
+  });
 
 
   /**

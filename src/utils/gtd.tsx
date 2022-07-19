@@ -184,6 +184,9 @@ export const toggleStatusProgressUpdate = async (taskRem: Rem, prevStatus: strin
           } else if (newStatus != 'Cancelled' && prevStatus == 'Done') {
             finishedNum = parseInt(resultArr[1]) - 1;
             totalNum = parseInt(resultArr[2]);
+          } else if (newStatus != 'Cancelled' && prevStatus == 'Cancelled') {
+            finishedNum = parseInt(resultArr[1]);
+            totalNum = parseInt(resultArr[2]) + 1;
           } else {
             finishedNum = parseInt(resultArr[1]);
             totalNum = parseInt(resultArr[2]);
@@ -205,11 +208,62 @@ export const toggleStatusProgressUpdate = async (taskRem: Rem, prevStatus: strin
   }
 }
 
-// export const updateAllProgressBar = async (plugin: RNPlugin) => {
-//   return await prevCheck(
-//     plugin,
-//     async (plugin: RNPlugin, focusedRem: Rem) => {
-//
-//     }
-//   )
-// }
+/**
+ * Update progress of all tasks in focused rem tree.
+ *
+ * When you move / delete / indent / unindent some tasks, this will help you correct related progresses.
+ */
+export const updateFocusedRemTreeProgress = async (plugin: RNPlugin) => {
+  return await prevCheck(
+    plugin,
+    async (plugin: RNPlugin, focusedRem: Rem) => {
+      let topTask = focusedRem;
+      for await (const successor of successors(focusedRem)) {
+        if (await isTaskRem(successor))
+          topTask = successor;
+      }
+      if (topTask)
+        await updateRemTreeProgress(plugin, topTask);
+    }
+  );
+}
+
+export const updateRemTreeProgress = async (plugin: RNPlugin, rem: Rem) => {
+  let finishedNum = 0;
+  let totalNum = 0;
+  // find the rem that progress property in (in following iteration)
+  let progressRem;
+  for (const descendant of await rem.getDescendants()) {
+
+    if (!progressRem && await descendant.isPowerupProperty()) {
+      const text = await plugin.richText.toString(descendant.text);
+      if (text == 'Progress')
+        progressRem = descendant;
+    }
+
+    if (await isTaskRem(descendant)) {
+      // update descendant recursively
+      await updateRemTreeProgress(plugin, descendant);
+
+      const status = await getStatusName(descendant);
+      if (status != 'Cancelled') {
+        totalNum += 1;
+        if (status == 'Done')
+          finishedNum += 1;
+      }
+    }
+  }
+  if (totalNum != 0) {
+    // update
+    const progressBarSymbol = await plugin.settings.getSetting('progressBarSymbol') as string;
+    const newProgress = genAsciiProgressBar(finishedNum / totalNum, progressBarSymbol) + `   [${finishedNum}/${totalNum}]`;
+    await rem.setPowerupProperty('taskPowerup', 'progress', [newProgress]);
+    // if all subtask finished
+    if (await rem.hasPowerup('automaticallyDone') && finishedNum == totalNum) {
+      await toggleToStatus(plugin, 'Done', rem);
+    }
+  } else {
+    // await plugin.app.toast(`${rem.text} has no subtask`);
+    if (progressRem) progressRem.remove();
+  }
+}

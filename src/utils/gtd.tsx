@@ -1,4 +1,4 @@
-import { Rem, RemId, RichTextInterface, RNPlugin } from '@remnote/plugin-sdk';
+import { Rem, RemId, RichTextInterface, RNPlugin, usePlugin } from '@remnote/plugin-sdk';
 import { getFocusedRem, successors } from './rem';
 
 const getDateDuration = (date1: Date, date2: Date) => {
@@ -57,6 +57,21 @@ export const padStatusName = (statusName: string) => {
   }
 }
 
+export const toggleTaskStatus = async (plugin: RNPlugin, toStatus: string) => {
+  const focusedRem = await getFocusedRem(plugin);
+
+  if (!focusedRem) {
+    await plugin.app.toast('You are not focus at any rem.');
+    return;
+  }
+
+  if (!(await isTaskRem(focusedRem))) {
+    return;
+  }
+
+  await plugin.messaging.broadcast(`task:${focusedRem._id}:${await getStatusName(focusedRem)}:${toStatus}`);
+}
+
 /**
  * @param ifIsTask what to do if focused rem is already a task (has task powerup)
  * @param ifNotTask what to do if focused rem is NOT a task (has task powerup). do nothing by default.
@@ -102,30 +117,6 @@ export const newTask = async (plugin: RNPlugin) => {
   });
 }
 
-export const toggleFocusedToStatus = async (plugin: RNPlugin, newStatus: string) => {
-  await prevCheck(
-    plugin,
-    async (plugin: RNPlugin, focusedRem: Rem) => {
-      await toggleToStatus(plugin, newStatus, focusedRem);
-    }
-  )
-}
-
-export const toggleToStatus = async (plugin: RNPlugin, newStatus: string, rem: Rem) => {
-  // get now status
-  const nowStatus = await getStatusName(rem);
-
-  // set new status
-  await setStatus(rem, newStatus, plugin);
-
-  // add log
-  let timeLog = await rem.getPowerupProperty('taskPowerup', 'timeLog');
-  timeLog += `\n[${new Date().toLocaleString()}]   ${padStatusName(nowStatus)}   →   ${padStatusName(newStatus)}`;
-  await rem.setPowerupProperty('taskPowerup', 'timeLog', [timeLog]);
-
-  // update status
-  await toggleStatusProgressUpdate(rem, nowStatus, newStatus, plugin);
-}
 
 const newTaskProgressUpdate = async (taskRem: Rem, plugin: RNPlugin) => {
   for await (const rem of successors(taskRem)) {
@@ -154,81 +145,22 @@ const newTaskProgressUpdate = async (taskRem: Rem, plugin: RNPlugin) => {
   }
 }
 
-export const toggleStatusProgressUpdate = async (taskRem: Rem, prevStatus: string, newStatus: string, plugin: RNPlugin) => {
-  // handle subtask
-  for await (const rem of successors(taskRem)) {
-    if (await isTaskRem(rem)) {
-      const progress = await rem.getPowerupProperty('taskPowerup', 'progress');
-      const progressBarSymbol = await plugin.settings.getSetting('progressBarSymbol') as string;
-      if (!progress) {
-        // TODO be deleted manually?
-      } else {
-        // extract the progress from property
-        const reg = /[★☆]*   \[(\d*)\/(\d*)]/;
-        const resultArr = reg.exec(progress);
-        if (resultArr) {
-          let finishedNum;
-          let totalNum;
-          if (newStatus == 'Done' && prevStatus != 'Cancelled') {
-            finishedNum = parseInt(resultArr[1]) + 1;
-            totalNum = parseInt(resultArr[2]);
-          } else if (newStatus == 'Done' && prevStatus == 'Cancelled') {
-            finishedNum = parseInt(resultArr[1]) + 1;
-            totalNum = parseInt(resultArr[2]) + 1;
-          } else if (newStatus == 'Cancelled' && prevStatus != 'Done') {
-            finishedNum = parseInt(resultArr[1]);
-            totalNum = parseInt(resultArr[2]) - 1;
-          } else if (newStatus == 'Cancelled' && prevStatus == 'Done') {
-            finishedNum = parseInt(resultArr[1]) - 1;
-            totalNum = parseInt(resultArr[2]) - 1;
-          } else if (newStatus != 'Cancelled' && prevStatus == 'Done') {
-            finishedNum = parseInt(resultArr[1]) - 1;
-            totalNum = parseInt(resultArr[2]);
-          } else if (newStatus != 'Cancelled' && prevStatus == 'Cancelled') {
-            finishedNum = parseInt(resultArr[1]);
-            totalNum = parseInt(resultArr[2]) + 1;
-          } else {
-            finishedNum = parseInt(resultArr[1]);
-            totalNum = parseInt(resultArr[2]);
-          }
-          // update
-          const newProgress = genAsciiProgressBar(finishedNum / totalNum, progressBarSymbol) + `   [${finishedNum}/${totalNum}]`;
-          await rem.setPowerupProperty('taskPowerup', 'progress', [newProgress]);
-          // if all subtask finished
-          if (await rem.hasPowerup('automaticallyDone') && finishedNum == totalNum) {
-            await toggleToStatus(plugin, 'Done', rem);
-          }
-        } else {
-          await plugin.app.toast('ERROR | Invalid progress property.' + resultArr);
-        }
-      }
-      // only consider direct parent task
-      break;
-    }
-  }
-}
-
 /**
  * Update progress of all tasks in focused rem tree.
  *
  * When you move / delete / indent / unindent some tasks, this will help you correct related progresses.
  */
-export const updateFocusedRemTreeProgress = async (plugin: RNPlugin) => {
-  return await prevCheck(
-    plugin,
-    async (plugin: RNPlugin, focusedRem: Rem) => {
-      let topTask = focusedRem;
-      for await (const successor of successors(focusedRem)) {
-        if (await isTaskRem(successor))
-          topTask = successor;
-      }
-      if (topTask)
-        await updateRemTreeProgress(plugin, topTask);
-    }
-  );
+export const updateRemTreeProgress = async (plugin: RNPlugin, fromRem: Rem) => {
+  let topTask = fromRem;
+  for await (const successor of successors(fromRem)) {
+    if (await isTaskRem(successor))
+      topTask = successor;
+  }
+  if (topTask)
+    await _updateRemTreeProgress(plugin, topTask);
 }
 
-export const updateRemTreeProgress = async (plugin: RNPlugin, rem: Rem) => {
+export const _updateRemTreeProgress = async (plugin: RNPlugin, rem: Rem) => {
   let finishedNum = 0;
   let totalNum = 0;
   // find the rem that progress property in (in following iteration)
@@ -243,7 +175,7 @@ export const updateRemTreeProgress = async (plugin: RNPlugin, rem: Rem) => {
 
     if (await isTaskRem(descendant)) {
       // update descendant recursively
-      await updateRemTreeProgress(plugin, descendant);
+      await _updateRemTreeProgress(plugin, descendant);
 
       const status = await getStatusName(descendant);
       if (status != 'Cancelled') {
@@ -260,10 +192,21 @@ export const updateRemTreeProgress = async (plugin: RNPlugin, rem: Rem) => {
     await rem.setPowerupProperty('taskPowerup', 'progress', [newProgress]);
     // if all subtask finished
     if (await rem.hasPowerup('automaticallyDone') && finishedNum == totalNum) {
-      await toggleToStatus(plugin, 'Done', rem);
+      await plugin.messaging.broadcast(`task:${rem._id}::Done`);
     }
   } else {
     // await plugin.app.toast(`${rem.text} has no subtask`);
     if (progressRem) progressRem.remove();
   }
+}
+
+export const getPowerupProperty = async (rem: Rem, powerupName: string, plugin: RNPlugin) => {
+  for (const descendant of await rem.getDescendants()) {
+    if (await descendant.isPowerupProperty()) {
+      const text = await plugin.richText.toString(descendant.text);
+      if (text == powerupName)
+        return descendant;
+    }
+  }
+  return null;
 }

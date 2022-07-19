@@ -1,10 +1,20 @@
-import { declareIndexPlugin, ReactRNPlugin } from '@remnote/plugin-sdk';
+import {
+  AppEvents,
+  declareIndexPlugin,
+  ReactRNPlugin,
+  Rem,
+  RNPlugin,
+  usePlugin,
+  WidgetLocation,
+} from '@remnote/plugin-sdk';
 import '../style.css';
 import '../App.css';
 import {
-  newTask,
-  toggleFocusedToStatus, updateFocusedRemTreeProgress,
+  genAsciiProgressBar, getPowerupProperty, getStatusName,
+  isTaskRem,
+  newTask, padStatusName, prevCheck, setStatus, toggleTaskStatus, updateRemTreeProgress,
 } from '../utils/gtd';
+import { getFocusedRem, successors } from '../utils/rem';
 
 async function onActivate(plugin: ReactRNPlugin) {
 
@@ -25,6 +35,18 @@ async function onActivate(plugin: ReactRNPlugin) {
     title: 'Progress Bar Symbol',
     defaultValue: '●○'
   });
+
+  await plugin.app.registerWidget(
+    'swift_gtd',
+    WidgetLocation.RightSidebar,
+    {
+      dimensions: {
+        height: 'auto',
+        width: '350',
+      },
+      widgetTabIcon: 'https://emojipedia-us.s3.dualstack.us-west-1.amazonaws.com/thumbs/120/microsoft/310/direct-hit_1f3af.png',
+    },
+  );
 
   await plugin.app.registerPowerup(
     'Task',
@@ -68,45 +90,157 @@ async function onActivate(plugin: ReactRNPlugin) {
     id: 'toggleToScheduled',
     name: 'Toggle To Scheduled',
     quickCode: 'ts',
-    action: async () => { await toggleFocusedToStatus(plugin, 'Scheduled') }
+    action: async () => { await toggleTaskStatus(plugin, 'Scheduled') }
   });
 
   await plugin.app.registerCommand({
     id: 'toggleToReady',
     name: 'Toggle To Ready',
     quickCode: 'tr',
-    action: async () => { await toggleFocusedToStatus(plugin, 'Ready') }
+    action: async () => { await toggleTaskStatus(plugin, 'Ready') }
   });
 
   await plugin.app.registerCommand({
     id: 'toggleToNow',
     name: 'Toggle To Now',
     quickCode: 'tn',
-    action: async () => { await toggleFocusedToStatus(plugin, 'Now') }
+    action: async () => { await toggleTaskStatus(plugin, 'Now') }
   });
 
   await plugin.app.registerCommand({
     id: 'toggleToDone',
     name: 'Toggle To Done',
     quickCode: 'td',
-    action: async () => { await toggleFocusedToStatus(plugin, 'Done') }
+    action: async () => { await toggleTaskStatus(plugin, 'Done') }
   });
 
   await plugin.app.registerCommand({
     id: 'toggleToCancelled',
     name: 'Toggle To Cancelled',
     quickCode: 'tc',
-    action: async () => { await toggleFocusedToStatus(plugin, 'Cancelled') }
+    action: async () => { await toggleTaskStatus(plugin, 'Cancelled') }
   });
 
   await plugin.app.registerCommand({
     id: 'updateFocusedRemTreeProgress',
     name: 'Update Focused Rem Tree Progress',
     action: async () => {
-      await updateFocusedRemTreeProgress(plugin);
+      await prevCheck(
+        plugin,
+        updateRemTreeProgress
+      );
     }
   });
 
+  await plugin.app.registerCommand({
+    id: 'startPomodoro',
+    name: 'Start Pomodoro',
+    action: async () => {
+      await prevCheck(
+        plugin,
+        async (plugin: RNPlugin, focusedRem: Rem) => {
+          await plugin.messaging.broadcast(`pomodoro:active:${focusedRem._id}`);
+        })
+    }
+  });
+
+  await plugin.event.addListener(
+    AppEvents.MessageBroadcast,
+    undefined,
+    async ({ message }) => {
+
+      const regMessage = /^task:(?<remId>.*?):(?<fromStatus>.*?):(?<toStatus>.*?)$/;
+      const matchMessage = regMessage.exec(message);
+      if (!matchMessage)
+        return;
+
+      const taskRemId = matchMessage.groups!.remId;
+      const taskRem = (await plugin.rem.findOne(taskRemId))!;
+      const fromStatus = matchMessage.groups!.fromStatus ? matchMessage.groups!.fromStatus : await getStatusName(taskRem);
+      const toStatus = matchMessage.groups!.toStatus;
+
+      // make sure there only one NOW task at the same time
+      const nowTaskRemId = await plugin.storage.getSession('nowTaskRemId') as string;
+
+      if (toStatus == 'Now') {
+        if (nowTaskRemId) {
+          await plugin.app.toast('Only one NOW task at the same time');
+          return;
+        } else {
+          await plugin.storage.setSession('nowTaskRemId', taskRemId);
+        }
+      }
+
+      if (fromStatus == 'Now' && toStatus != 'Now') {
+        await plugin.storage.setSession('nowTaskRemId', undefined);
+      }
+
+      // set new status
+      await setStatus(taskRem, toStatus, plugin);
+
+      // add log
+      let timeLog = await taskRem.getPowerupProperty('taskPowerup', 'timeLog');
+      timeLog += `\n[${new Date().toLocaleString()}]   ${padStatusName(fromStatus)}   →   ${padStatusName(toStatus)}`;
+      await taskRem.setPowerupProperty('taskPowerup', 'timeLog', [timeLog]);
+
+      // update proress bar
+      for await (const rem of successors(taskRem)) {
+        if (await isTaskRem(rem)) {
+          const progress = await rem.getPowerupProperty('taskPowerup', 'progress');
+          const progressBarSymbol = await plugin.settings.getSetting('progressBarSymbol') as string;
+          if (!progress) { // no progress bar, regenerate one
+            await updateRemTreeProgress(plugin, rem);
+          } else {
+            // extract the progress from property
+            const reg = /[★☆]*   \[(\d*)\/(\d*)]/;
+            const resultArr = reg.exec(progress);
+            if (resultArr) {
+              let finishedNum;
+              let totalNum;
+              if (toStatus == 'Done' && fromStatus != 'Cancelled') {
+                finishedNum = parseInt(resultArr[1]) + 1;
+                totalNum = parseInt(resultArr[2]);
+              } else if (toStatus == 'Done' && fromStatus == 'Cancelled') {
+                finishedNum = parseInt(resultArr[1]) + 1;
+                totalNum = parseInt(resultArr[2]) + 1;
+              } else if (toStatus == 'Cancelled' && fromStatus != 'Done') {
+                finishedNum = parseInt(resultArr[1]);
+                totalNum = parseInt(resultArr[2]) - 1;
+              } else if (toStatus == 'Cancelled' && fromStatus == 'Done') {
+                finishedNum = parseInt(resultArr[1]) - 1;
+                totalNum = parseInt(resultArr[2]) - 1;
+              } else if (toStatus != 'Cancelled' && fromStatus == 'Done') {
+                finishedNum = parseInt(resultArr[1]) - 1;
+                totalNum = parseInt(resultArr[2]);
+              } else if (toStatus != 'Cancelled' && fromStatus == 'Cancelled') {
+                finishedNum = parseInt(resultArr[1]);
+                totalNum = parseInt(resultArr[2]) + 1;
+              } else {
+                finishedNum = parseInt(resultArr[1]);
+                totalNum = parseInt(resultArr[2]);
+              }
+              // zero check
+              if (totalNum == 0) {
+                const progressPropertyRem = await getPowerupProperty(rem, 'Progress', plugin);
+                progressPropertyRem?.remove();
+              }
+              // update
+              const newProgress = genAsciiProgressBar(finishedNum / totalNum, progressBarSymbol) + `   [${finishedNum}/${totalNum}]`;
+              await rem.setPowerupProperty('taskPowerup', 'progress', [newProgress]);
+              // if all subtask finished
+              if (await rem.hasPowerup('automaticallyDone') && finishedNum == totalNum) {
+                await plugin.messaging.broadcast(`task:${rem._id}::Done`);
+              }
+            } else {
+              await plugin.app.toast('ERROR | Invalid progress property.' + resultArr);
+            }
+          }
+          // only consider direct parent task
+          break;
+        }
+      }
+    }
+  );
 
   /**
    * Since Microsoft Graph doesn't provide API to move a task to My Day,

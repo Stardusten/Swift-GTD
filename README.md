@@ -4,6 +4,8 @@
 
 ## 任务及其状态
 
+![swift-gtd2](https://user-images.githubusercontent.com/38722307/179881874-b2deca60-8659-4db4-98f9-06d931f14839.gif)
+
 任务共有以下五种状态：
 
 - Scheduled
@@ -35,6 +37,9 @@
 进度条样式可在插件设置中更改。
 
 ## 番茄钟
+
+![swift-gtd](https://user-images.githubusercontent.com/38722307/179881363-1e36329b-f94d-47f5-93f7-741e48156425.gif)
+
 
 点击右侧栏中飞镖即可打开番茄钟组件。输入番茄钟的时间，然后在想要完成的任务上使用 Start Pomodoro 指令即可启动一个番茄钟。
 

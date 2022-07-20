@@ -13,147 +13,6 @@ const SwiftGtdWidget = () => {
   return <Pomodoro></Pomodoro>;
 }
 
-// // TODO Too ugly!!!!
-// const Pomodoro = () => {
-//   // TODO try remove any below
-//   const plugin = usePlugin();
-//
-//   // rest time of active timer. if no timer is active, then [0, 0, 0]
-//   const [restTime, setRestTime] = useState([0, 0, 0]);
-//   // for sync update
-//   const restSecsRef = useRef(restTime);
-//
-//   // The active timer's id. if no timer is active, then null.
-//   const [activeTimerId, setActiveTimerId]: [any, SetStateAction<any>] = useState();
-//
-//   // Count down string, specified by usr
-//   const [cdStr, setCdStr] = useState('');
-//
-//   // which task (rem) the active timer for
-//   const [taskRemId, setTaskRemId]: [any, SetStateAction<any>] = useState();
-//
-//   useEffect(() => {
-//
-//     // check if there's an unfinished task
-//     plugin.storage.getSynced('activeTimer')
-//       .then((result) => {
-//         if (result) {
-//           const [finishTime, _taskRemId] = result;
-//           setTaskRemId(_taskRemId);
-//           const restAllSecs = (finishTime - new Date().valueOf()) / 1000;
-//           if (restAllSecs > 0) {
-//             const restHours = Math.floor(restAllSecs / 3600);
-//             const restMins = Math.floor((restAllSecs - restHours * 3600) / 60);
-//             const restSecs = restAllSecs % 60;
-//             setRestTime([restHours, restMins, restSecs]);
-//             restSecsRef.current = [restHours, restMins, restSecs];
-//             // restart timer
-//             const timerId = setInterval(async () => {
-//               if (JSON.stringify(restSecsRef.current) == JSON.stringify([0, 0, 0])) {
-//                 // reset timer
-//                 clearInterval(timerId);
-//                 // inform others that timer of this task is finished
-//                 await plugin.messaging.broadcast(`pomodoro:finish:${taskRemId}`);
-//                 // clear saved timer
-//                 await plugin.storage.setSynced('activeTimer', null);
-//               } else setRestTime(prev => decHMS(prev));
-//             }, 1000);
-//           } else {
-//             // reset timer
-//             clearInterval(activeTimerId);
-//           }
-//         }
-//       })
-//       .catch(console.error);
-//
-//     restSecsRef.current = restTime;
-//   });
-//
-//   // TODO Ugly!!!
-//   // when receive message like "ap:<remId>", start a new pomodoro for this rem (check task before).
-//   // show its rem below, and user can navigate to the task rem easily.
-//   useRunAsync(async () => {
-//     await plugin.event.addListener(
-//       AppEvents.MessageBroadcast,
-//       undefined,
-//       async ({ message }) => {
-//         const regMessage = /pomodoro:active:(.*)/;
-//         const matchArr = regMessage.exec(message);
-//         if (!matchArr)
-//           return;
-//
-//         // let active rem display at the pomodoro UI
-//         setTaskRemId(matchArr[1]);
-//
-//         // check if cdStr is legal
-//         const regCd = /^\s*(?:(?<h>\d*)h)?\s*(?:(?<min>\d*)min)?\s*(?:(?<s>\d*)s)?\s*$/;
-//         const match = regCd.exec(cdStr);
-//         if (!match) {
-//           await plugin.app.toast('Invalid count down format.');
-//           return;
-//         }
-//         // extract hours, minutes, seconds
-//         const h = match.groups!.h ? parseInt(match.groups!.h) : 0;
-//         const min = match.groups!.min ? parseInt(match.groups!.min) : 0;
-//         const s = match.groups!.s ? parseInt(match.groups!.s) : 0;
-//
-//         setRestTime([h, min, s]);
-//         restSecsRef.current = [h, min, s];
-//         // save [finish time, remId of active taskrem] to synced storage
-//         // so that we can restart it later.
-//         await plugin.storage.setSynced('activeTimer', [addHMSToDate(new Date(), [h, min, s]), taskRemId]);
-//         // start timer
-//         const timerId = setInterval(async () => {
-//           if (JSON.stringify(restSecsRef.current) == JSON.stringify([0, 0,  0])) {
-//             // reset timer
-//             clearInterval(timerId);
-//             // inform others that timer of this task is finished
-//             await plugin.messaging.broadcast(`pomodoro:finish:${taskRemId}`);
-//             // clear saved timer
-//             await plugin.storage.setSynced('activeTimer', null);
-//           }
-//           else setRestTime(prev => decHMS(prev));
-//         }, 1000);
-//
-//         // record timer id
-//         setActiveTimerId(timerId);
-//     });
-//   }, []);
-//
-//   return <div>
-//     <div>{ `${restTime[0]}h ${restTime[1]}min ${restTime[2]}s` }</div>
-//     <input value={ cdStr }
-//            onChange={ (e) => setCdStr(e.target.value)}
-//            placeholder={'e.g. 2h13min'}
-//     />
-//     <div
-//       onClick={async () => {
-//         if (activeTimerId) {
-//           clearInterval(activeTimerId);
-//           setActiveTimerId(-1); // clear active timerId
-//           setRestTime([0, 0, 0]); // reset restSecs
-//           await plugin.app.toast('Clear active timer successfully.');
-//         } else {
-//           await plugin.app.toast('No active timer.');
-//         }
-//       }}
-//     >Cancel</div>
-//     <RemHierarchyEditorTree
-//       width={ 350 }
-//       remId={ taskRemId }></RemHierarchyEditorTree>
-//   </div>
-// }
-//
-//
-// /**
-//  * Get `hms[0]h hms[1]min hms[2]s` later from `date`
-//  */
-// const addHMSToDate = (date: Date, hms: number[]) => {
-//   const incSecs = 3600 * hms[0] + 60 * hms[1] + hms[2];
-//   const incDate = new Date(incSecs * 1000);
-//   return date.valueOf() + incDate.valueOf();
-// }
-
 const Pomodoro = () => {
   const plugin = usePlugin();
 
@@ -171,6 +30,29 @@ const Pomodoro = () => {
   // remId of active task's id
   const [taskRemId, setTaskRemId]: any = useState();
 
+  // try to recover unfinish timer
+  useEffect(() => {
+    plugin.storage.getSynced('unfinishedPomodoro')
+      .then((unfinishedPomodoro) => {
+        if (unfinishedPomodoro) {
+          const [finishTime, taskRemId] = unfinishedPomodoro;
+          let restSecsTotal = (new Date(finishTime).valueOf() - new Date().valueOf()) / 1000;
+          if (restSecsTotal > 0) { // there exists an unfinished old pomodoro
+            const restHours = Math.floor(restSecsTotal / 3600);
+            restSecsTotal %= 3600;
+            const restMins = Math.floor(restSecsTotal / 60);
+            const restSecs = Math.floor(restSecsTotal % 60);
+            setRestHms([restHours, restMins, restSecs]);
+            setTaskRemId(taskRemId);
+          } else {
+            // there exists an old pomodoro, but it's overtime now.
+            // TODO
+          }
+        }
+      })
+      .catch(console.error)
+  }, [])
+
   useEffect(() => {
     // not finished
     if (JSON.stringify(restHms) != JSON.stringify([0, 0, 0])) {
@@ -179,14 +61,17 @@ const Pomodoro = () => {
       }, 1000);
       setTimerId(id);
     } else if (taskRemId) { // finished
-      setTimerId(undefined);
+      setTimerId(null);
+      plugin.storage.setSynced('unfinishedPomodoro', null).then().catch(console.error);
       // notify all listeners that this pomodoro has finished
       // plugin.messaging.broadcast(`pomodoro:finished:${taskRemId}`).then().catch(console.error);
       plugin.messaging.broadcast(`task:${taskRemId}:Now:Ready`).then().catch(console.error);
     }
   }, [restHms]);
 
+  // handle new pomodoro request
   useEffect(() => {
+
     plugin.event.addListener(
       AppEvents.MessageBroadcast,
       undefined,
@@ -196,6 +81,13 @@ const Pomodoro = () => {
         const matchMessage = regMessage.exec(message);
         if (!matchMessage)
           return;
+
+        const unfinishedPomodoro = await plugin.storage.getSynced('unfinishedPomodoro');
+        if (unfinishedPomodoro) {
+          console.log(JSON.stringify(unfinishedPomodoro));
+          await plugin.app.toast('You cannot do two pomodoro at the same time!');
+          return;
+        }
 
         const _taskRemId = matchMessage.groups!.remId
         setTaskRemId(_taskRemId);
@@ -217,30 +109,97 @@ const Pomodoro = () => {
 
         // set status to now
         plugin.messaging.broadcast(`task:${_taskRemId}::Now`).then().catch(console.error);
+
+        // save to synced storage
+        const finishTime = new Date(new Date().getTime() + (3600 * h + 60 * min + s) * 1000);
+        await plugin.storage.setSynced('unfinishedPomodoro', [finishTime, _taskRemId]);
       });
   }, []);
 
   return (
-    <div>
-      <h2 className={ 'grow' }>Pomodoro</h2>
-      <div>{ `${restHms[0]}h ${restHms[1]}min ${restHms[2]}s` }</div>
-      <input
-        value={ cdStr }
-        onChange={ (e) => setCdStr(e.target.value) }
-        placeholder={'e.g. 2h13min'}
-      />
-      <div
-        onClick={ async () => {
-          clearTimeout(timerId);
-          // reset restHms
-          setRestHms([0, 0, 0]);
-          setTimerId(undefined);
-          // notify all listeners that this pomodoro is cancelled
-          // plugin.messaging.broadcast(`pomodoro:cancelled:${taskRemId}`).then().catch(console.error);
-          plugin.messaging.broadcast(`task:${taskRemId}:Now:Ready`).then().catch(console.error);
+    <div
+      className="rn-plugin-sidebar box-border h-full p-2 overflow-y-auto"
+    >
+      <h2
+        style={{
+          display: 'block',
+          fontSize: '1.5em',
+          marginBlockStart: '0.83em',
+          marginBlockEnd: '0.83em',
+          marginInlineStart: '0px',
+          marginInlineEnd: '0px',
+          marginLeft: '0.2em',
+          fontWeight: 'bold',
         }}
-      >Cancel</div>
-      {/*<RemHierarchyEditorTree remId={ taskRemId }></RemHierarchyEditorTree>*/}
+      >Swift GTD</h2>
+      <div className="rn-plugin rn-card flex flex-col mb-2 bg-white">
+        <div
+          className="rn-card__header flex items-center flex-shrink-0 gap-2 p-2 text-lg font-semibold"
+          style={{ display: 'inline-block' }}
+        >Pomodoro</div>
+        <div className="rn-card__content flex flex-col gap-2 p-2">
+          <div
+            className="font-mono"
+            style={{
+              textAlign: 'center',
+              fontSize: '2em',
+              fontWeight: '600',
+            }}
+          >
+            <span>{ restHms[0] }</span>
+            <span style={{ color: '#ACACC0', marginLeft: '0.1em' }}>h  </span>
+            <span>{ restHms[1] }</span>
+            <span style={{ color: '#ACACC0', marginLeft: '0.1em' }}>min  </span>
+            <span>{ restHms[2] }</span>
+            <span style={{ color: '#ACACC0', marginLeft: '0.1em' }}>s  </span>
+          </div>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+            }}
+          >
+            <input
+              style={{
+                backgroundColor: '#f4f4fa',
+                padding: '0.5em 1em',
+                border: '0.2em',
+                borderRadius: '5px',
+                width: '75%',
+                marginRight: '1em',
+              }}
+              value={ cdStr }
+              onChange={ (e) => setCdStr(e.target.value) }
+              placeholder={'Type cd here: e.g. 2h13min'}
+            />
+            <div
+              style={{
+                backgroundColor: '#f4f4fa',
+                padding: '0.5em 0',
+                border: '0.2em',
+                borderRadius: '5px',
+                width: '25%',
+                textAlign: 'center',
+                color: '#9CA3AF',
+              }}
+              onClick={ async () => {
+                clearTimeout(timerId);
+                // reset restHms
+                setRestHms([0, 0, 0]);
+                setTimerId(null);
+                await plugin.storage.setSynced('unfinishedPomodoro', null);
+                // notify all listeners that this pomodoro is cancelled
+                // plugin.messaging.broadcast(`pomodoro:cancelled:${taskRemId}`).then().catch(console.error);
+                plugin.messaging.broadcast(`task:${taskRemId}:Now:Ready`).then().catch(console.error);
+              }}
+            >Cancel</div>
+          </div>
+          {/*<RemHierarchyEditorTree*/}
+          {/*  remId={ taskRemId }*/}
+          {/*  width={ '100%' }*/}
+          {/*></RemHierarchyEditorTree>*/}
+        </div>
+      </div>
     </div>
   );
 }

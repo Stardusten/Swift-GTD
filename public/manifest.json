@@ -10,7 +10,7 @@
     "patch": 1
   },
   "description": "",
-  "authorizedActions": "ReadCreateModifyDelet e",
+  "authorizedActions": "ReadCreateModifyDelete",
   "requestNative": false,
   "requiredScopes": [
     {

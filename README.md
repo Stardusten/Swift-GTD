@@ -1,60 +1,57 @@
-# RemNote Plugin Template
+# Swift GTD
 
-## Required Software
+一个给 RemNote 用的 GTD 插件。
 
-You'll need the following software to start developing:
+## 任务及其状态
 
-1. [Node.js](https://nodejs.org/en/download/)
+任务共有以下五种状态：
 
-2. [A GitHub Account](https://github.com/)
+- Scheduled
+- Ready
+- Now
+- Done
+- Cancelled
 
-3. [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
+状态转换逻辑如下：
 
-4. An IDE or Text Editor
+- 添加一个任务，自动转换到 Scheduled 状态。
+- 准备处理一个任务（提上日程），将其转换到 Ready 状态。
+- 现在手头正在做的任务应为 Now 状态（只允许有一个任务处于 Now 状态）。
+- 完成一个任务，转换到 Done 状态。
+- 放弃一个任务，转换到 Cancelled 状态。
 
-We recommend using [Visual Studio Code](https://code.visualstudio.com/), but any other IDE or text editor will work.
+所有状态转换及其时间都会记录在 Time Log 这个属性里。
 
-## Template Setup Guide
+## 子任务与进度条
 
-## Create a new repository from this template
+当添加子任务和更改子任务的状态时，会自动为父任务添加、删除、更新进度条。
 
-- Above the file list, click the green button which says "Use this template".
-- Select the account you want to own the repository.
-- Type a name for your repository, and an optional description.
-- Choose a repository visibility.
-- Click "Create repository from template".
+注意：目前此插件无法捕捉不经由插件提供的指令（如上面的 new task 指令等）产生的任务树更改。
 
-## Clone your new repository
+比如：如果将某个子任务所在 rem 反缩进一级，则这个任务就不属于其原来的父任务了。但插件无法捕捉这一事件，也不会自动更新父任务的进度条。
 
-- Browse to your new GitHub repository
-- Click on the Clone or download button
-- Press "HTTPS"
-- Copy the link
-- Open a terminal in the directory where you want to clone the repository
-- Run `git clone <link>` to download the repository.
+当出现这种情况导致的进度条错误时，可以使用 Update Focused Rem Tree Prgerss 指令强制扫描当前 rem 所在 rem 树，修正进度条。
 
-### Running the Template
+进度条样式可在插件设置中更改。
 
-Open your terminal of choice and navigate into the folder of the repository you just cloned. If you are interested in learning about the structure of the plugin template, check the [plugin structure documentation](https://plugins.remnote.com/advanced/project_structure) page.
+## 番茄钟
 
-Then run:
+点击右侧栏中飞镖即可打开番茄钟组件。输入番茄钟的时间，然后在想要完成的任务上使用 Start Pomodoro 指令即可启动一个番茄钟。
 
-```bash
-npm install
-```
+番茄钟的时间使用 x h x min xs 格式指定，下面的输入都是合法的：
 
-This will install a very minimal React App, along with the RemNote plugin SDK (software development kit).
+- 10min 20s
+- 1h
+- 1h10min7s
+- 10 s
 
-### Start your plugin
+启动番茄钟会使对应任务切换到 Now 状态，番茄钟完成后切换到 Ready 状态。自动状态的切换和手工切换一样，会记录到 Time Log 属性中。
 
-Inside the plugin folder, run:
+一个未完成的番茄钟不会因为关掉 remnote 标签页 / 应用而丢失。在再次启动时，将会自动检测是否存在之前未完成的番茄钟，如果有，则继续。
 
-```bash
-npm run dev-sandbox-only
-```
+## 未来计划
 
-## Resources
-
-If you are interested in building your own plugins, taking a look through the source code for our example plugins and plugins built by the community would be a great starting point.
-Of course, you should also check out the official documentation, guides and tutorials on our [plugin website](https://plugins.remnote.com).
-If you are new to writing plugins, we recommend checking out the [dictionary plugin project tutorial](https://plugins.remnote.com/in-depth-tutorial/overview).
+- 番茄钟支持休息
+- 番茄钟支持提醒
+- 支持计算一个任务的总用时
+- 支持以图表的形式做时间分析

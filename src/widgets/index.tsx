@@ -286,6 +286,14 @@ async function onActivate(plugin: ReactRNPlugin) {
   //     }
   //   }
   // });
+
+  await plugin.app.registerCommand({
+    id: 'check synced storage',
+    name: 'check synced storage',
+    action: async () => {
+      console.log(await plugin.storage.getSynced('unfinishedPomodoro'));
+    }
+  })
 }
 
 async function onDeactivate(_: ReactRNPlugin) {}

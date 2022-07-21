@@ -69,7 +69,13 @@ export const toggleTaskStatus = async (plugin: RNPlugin, toStatus: string) => {
     return;
   }
 
-  await plugin.messaging.broadcast(`task:${focusedRem._id}:${await getStatusName(focusedRem)}:${toStatus}`);
+  // await plugin.messaging.broadcast(`task:${focusedRem._id}:${await getStatusName(focusedRem)}:${toStatus}`);
+  await plugin.messaging.broadcast({
+    type: 'task',
+    remId: focusedRem._id,
+    fromStatus: await getStatusName(focusedRem),
+    toStatus
+  });
 }
 
 /**
@@ -114,6 +120,10 @@ export const newTask = async (plugin: RNPlugin) => {
 
       // handle progress bar
       await newTaskProgressUpdate(focusedRem, plugin);
+
+      // hide Time Log powerups
+      // const timeLogRem = await getPowerupProperty(focusedRem, 'Time Log', plugin);
+      // await timeLogRem?.setHiddenExplicitlyIncludedState('hidden');
   });
 }
 
@@ -192,7 +202,12 @@ export const _updateRemTreeProgress = async (plugin: RNPlugin, rem: Rem) => {
     await rem.setPowerupProperty('taskPowerup', 'progress', [newProgress]);
     // if all subtask finished
     if (await rem.hasPowerup('automaticallyDone') && finishedNum == totalNum) {
-      await plugin.messaging.broadcast(`task:${rem._id}::Done`);
+      // await plugin.messaging.broadcast(`task:${rem._id}::Done`);
+      await plugin.messaging.broadcast({
+        type: 'task',
+        remId: rem._id,
+        toStatus: 'Done',
+      });
     }
   } else {
     // await plugin.app.toast(`${rem.text} has no subtask`);
@@ -209,4 +224,18 @@ export const getPowerupProperty = async (rem: Rem, powerupName: string, plugin: 
     }
   }
   return null;
+}
+
+/**
+ * Return a map, key: name of property, value: rem
+ */
+export const getPowerupProperties = async (rem: Rem, plugin: RNPlugin) => {
+  const result = new Map();
+  for (const descendant of await rem.getDescendants()) {
+    if (await descendant.isPowerupProperty()) {
+      const text = await plugin.richText.toString(descendant.text);
+      result.set(text, descendant);
+    }
+  }
+  return result;
 }

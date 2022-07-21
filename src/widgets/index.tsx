@@ -10,11 +10,12 @@ import {
 import '../style.css';
 import '../App.css';
 import {
-  genAsciiProgressBar, getPowerupProperty, getStatusName,
+  genAsciiProgressBar, getPowerupProperties, getPowerupProperty, getStatusName,
   isTaskRem,
   newTask, padStatusName, prevCheck, setStatus, toggleTaskStatus, updateRemTreeProgress,
 } from '../utils/gtd';
 import { getFocusedRem, successors } from '../utils/rem';
+import '../css/sidebar.css';
 
 async function onActivate(plugin: ReactRNPlugin) {
 
@@ -36,8 +37,14 @@ async function onActivate(plugin: ReactRNPlugin) {
     defaultValue: '●○'
   });
 
+  await plugin.settings.registerStringSetting({
+    id: 'defaultPomodoroTime',
+    title: 'Default Pomodoro Time',
+    defaultValue: '30min',
+  })
+
   await plugin.app.registerWidget(
-    'swift_gtd',
+    'sidebar',
     WidgetLocation.RightSidebar,
     {
       dimensions: {
@@ -139,7 +146,11 @@ async function onActivate(plugin: ReactRNPlugin) {
       await prevCheck(
         plugin,
         async (plugin: RNPlugin, focusedRem: Rem) => {
-          await plugin.messaging.broadcast(`pomodoro:active:${focusedRem._id}`);
+          // await plugin.messaging.broadcast(`pomodoro:active:${focusedRem._id}`);
+          await plugin.messaging.broadcast({
+            type: 'pomodoroActive',
+            remId: focusedRem._id,
+          })
         })
     }
   });
@@ -149,30 +160,29 @@ async function onActivate(plugin: ReactRNPlugin) {
     undefined,
     async ({ message }) => {
 
-      const regMessage = /^task:(?<remId>.*?):(?<fromStatus>.*?):(?<toStatus>.*?)$/;
-      const matchMessage = regMessage.exec(message);
-      if (!matchMessage)
+      let { type, remId: taskRemId, fromStatus, toStatus } = message;
+
+      if (type != 'task')
         return;
 
-      const taskRemId = matchMessage.groups!.remId;
       const taskRem = (await plugin.rem.findOne(taskRemId))!;
-      const fromStatus = matchMessage.groups!.fromStatus ? matchMessage.groups!.fromStatus : await getStatusName(taskRem);
-      const toStatus = matchMessage.groups!.toStatus;
+      if (!fromStatus)
+        fromStatus = await getStatusName(taskRem);
 
       // make sure there only one NOW task at the same time
-      const nowTaskRemId = await plugin.storage.getSession('nowTaskRemId') as string;
+      const nowTaskRemId = await plugin.storage.getSynced('nowTaskRemId') as string;
 
       if (toStatus == 'Now') {
         if (nowTaskRemId) {
           await plugin.app.toast('Only one NOW task at the same time');
           return;
         } else {
-          await plugin.storage.setSession('nowTaskRemId', taskRemId);
+          await plugin.storage.setSynced('nowTaskRemId', taskRemId);
         }
       }
 
       if (fromStatus == 'Now' && toStatus != 'Now') {
-        await plugin.storage.setSession('nowTaskRemId', undefined);
+        await plugin.storage.setSynced('nowTaskRemId', null);
       }
 
       // set new status
@@ -229,7 +239,12 @@ async function onActivate(plugin: ReactRNPlugin) {
               await rem.setPowerupProperty('taskPowerup', 'progress', [newProgress]);
               // if all subtask finished
               if (await rem.hasPowerup('automaticallyDone') && finishedNum == totalNum) {
-                await plugin.messaging.broadcast(`task:${rem._id}::Done`);
+                // await plugin.messaging.broadcast(`task:${rem._id}::Done`);
+                await plugin.messaging.broadcast({
+                  type: 'task',
+                  remId: rem._id,
+                  toStatus: 'Done',
+                })
               }
             } else {
               await plugin.app.toast('ERROR | Invalid progress property.' + resultArr);
@@ -286,14 +301,6 @@ async function onActivate(plugin: ReactRNPlugin) {
   //     }
   //   }
   // });
-
-  await plugin.app.registerCommand({
-    id: 'check synced storage',
-    name: 'check synced storage',
-    action: async () => {
-      console.log(await plugin.storage.getSynced('unfinishedPomodoro'));
-    }
-  })
 }
 
 async function onDeactivate(_: ReactRNPlugin) {}

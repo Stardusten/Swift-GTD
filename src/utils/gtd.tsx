@@ -91,8 +91,9 @@ export const prevCheck = async (plugin: RNPlugin, ifIsTask: Function, ifNotTask?
     return;
   }
 
-  if (!(await isTaskRem(focusedRem)) && ifNotTask) {
-    await ifNotTask(plugin, focusedRem);
+  if (!(await isTaskRem(focusedRem))) {
+    if (ifNotTask)
+      await ifNotTask(plugin, focusedRem);
     return;
   }
 

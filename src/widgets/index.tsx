@@ -257,6 +257,15 @@ async function onActivate(plugin: ReactRNPlugin) {
     }
   );
 
+  // request notification permission
+  Notification.requestPermission().then(async (permission) => {
+    if (permission == 'granted')
+      await plugin.app.toast('[Swift GTD] Get notification permission successfully.');
+    else
+      return;
+      // await plugin.app.toast('[Swift GTD] Failed to get notification permission. Please make sure the plugin is running in native mode');
+  });
+
   /**
    * Since Microsoft Graph doesn't provide API to move a task to My Day,
    * we decide to map Now tasks to important tasks in Microsoft TO DO.

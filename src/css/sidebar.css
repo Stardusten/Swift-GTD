@@ -8,6 +8,7 @@
     flex-grow: 1;
     transition: all 70ms linear;
     margin: 0 0.3em;
+    cursor: pointer;
 }
 
 .gtd-button:hover {
@@ -39,4 +40,15 @@
     font-size: 2em;
     font-weight: 600;
     font-family: monospace;
+}
+
+.task-overview-title {
+    font-size: 1.1em;
+    font-weight: 500;
+    color: darkgray;
+}
+
+.task-overview-tasks {
+    list-style: inherit;
+    margin-left: 2em;
 }

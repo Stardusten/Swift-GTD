@@ -1,7 +1,7 @@
 import {
   AppEvents, Rem, RemHierarchyEditorTree, RemId, RemRichTextEditor, RemViewer,
   renderWidget,
-  RichText, RNPlugin,
+  RichText, RNPlugin, useAPIEventListener,
   usePlugin,
   useRunAsync,
   useSessionStorageState,
@@ -30,7 +30,7 @@ const SideBarWidget = () => {
       >Swift GTD</h2>
       <TaskToggleQuickAccess></TaskToggleQuickAccess>
       <Pomodoro></Pomodoro>
-      {/*<TaskInspector></TaskInspector>*/}
+      <TaskOverview></TaskOverview>
     </div>
   );
 }
@@ -117,6 +117,12 @@ const Pomodoro = () => {
     } else if (taskRemId) { // finished
       setTimerId(null);
       plugin.storage.setSynced('unfinishedPomodoro', null).then().catch(console.error);
+      // send notification
+      const noti = new Notification(
+        'A pomodoro is finished. Time to take a break!',
+        {
+          requireInteraction: true
+        });
       // notify all listeners that this pomodoro has finished
       // plugin.messaging.broadcast(`task:${taskRemId}:Now:Ready`).then().catch(console.error);
       plugin.messaging.broadcast({
@@ -218,9 +224,13 @@ const Pomodoro = () => {
             setRestHms([0, 0, 0]);
             setTimerId(null);
             await plugin.storage.setSynced('unfinishedPomodoro', null);
+            // send notification
+            const noti = new Notification(
+              'A pomodoro is cancelled.',
+              {
+                requireInteraction: true
+              });
             // notify all listeners that this pomodoro is cancelled
-            // plugin.messaging.broadcast(`pomodoro:cancelled:${taskRemId}`).then().catch(console.error);
-            // plugin.messaging.broadcast(`task:${taskRemId}:Now:Ready`).then().catch(console.error);
             plugin.messaging.broadcast({
               type: 'task',
               remId: taskRemId,
@@ -229,19 +239,18 @@ const Pomodoro = () => {
             }).then().catch(console.error);
           }}
           onInactiveClick={ async () => {
-            await prevCheck(
+            return await prevCheck(
               plugin,
               async (plugin: RNPlugin, focusedRem: Rem) => {
                 // await plugin.messaging.broadcast(`pomodoro:active:${focusedRem._id}`);
                 await plugin.messaging.broadcast({
                   type: 'pomodoroActive',
                   remId: focusedRem._id,
-                })
+                });
             });
           }}
         ></PomodoroButton>
         </div>
-        {/*<FocusedTask></FocusedTask>*/}
       </div>
     </div>
   );
@@ -267,81 +276,164 @@ const PomodoroButton = (props: any) => {
   );
 }
 
-/**
- * XXX Won't update reactively!!! deprecated for now.
- * @constructor
- */
-const FocusedTask = () => {
+const TaskOverview = () => {
 
-  const focusedRemId = useTracker(async (plugin) => {
-    return await plugin.focus.getFocusedRemId();
-  });
-
-  return <RemHierarchyEditorTree width={ '100%' } remId={ focusedRemId }></RemHierarchyEditorTree>;
-}
-
-const TaskInspector = () => {
   const plugin = usePlugin();
 
-  const [timeLogHtml, setTimeLogHtml] = useState(<></>)
+  const [targets, setTargets]: any = useState();
 
-  const updateTaskInspector = async (remId: RemId) => {
-    const openRem = (await plugin.rem.findOne(remId))!;
-    if (await isTaskRem(openRem)) {
-      const powerupMap = await getPowerupProperties(openRem, plugin);
-      if (powerupMap.has('Time Log')) {
-        const rem: Rem = powerupMap.get('Time Log');
-        const timeLog = await plugin.richText.toString(rem.backText!);
-        const regTimeLog = /\[(?<time>\d{1,2}\/\d{1,2}\/\d{4}, \d{1,2}:\d{1,2}:\d{1,2} (?:AM|PM))\]\s*(?<fromStatus>\w*)\s*(?:→\s*(?<toStatus>\w*))?/;
-        const _timeLogHtml: JSX.Element[] = [];
-        for (const row of timeLog.split('\n')) {
-          const matchTimeLog = regTimeLog.exec(row);
-          if (matchTimeLog) {
-            const { time, fromStatus, toStatus } = matchTimeLog.groups!;
-            const _li: JSX.Element[] = [];
-            _li.push(<span style={{ color: 'gray' }}>[{ time }] </span>);
-            _li.push(status2colorfulHtml(fromStatus));
-            if (toStatus) {
-              _li.push(<span>{ ' >>> ' }</span>)
-              _li.push(status2colorfulHtml(toStatus));
-            }
-            _timeLogHtml.push(<li>{ _li }</li>)
-          }
-        }
-        setTimeLogHtml(<ol className="gtd-log-row">{ _timeLogHtml }</ol> );
+  const updateTaskOverview = async () => {
+    const taskPowerupRem = (await plugin.powerup.getPowerupByCode('taskPowerup'))!;
+    const taskRems = await taskPowerupRem.taggedRem();
+
+    const now: any = [];
+    const ready: any = [];
+    const scheduled: any = [];
+
+    for (const taskRem of taskRems) {
+      const status = await taskRem.getPowerupProperty('taskPowerup', 'status');
+
+      switch (status) {
+        case 'Ready':
+          ready.push(taskRem);
+          break;
+        case 'Now':
+          now.push(taskRem);
+          break;
+        case 'Scheduled':
+          scheduled.push(taskRem);
+          break;
+        default:
       }
     }
+
+    setTargets({ now, ready, scheduled });
   }
 
-  // plugin.event.addListener(
-  //   AppEvents.GlobalOpenRem,
-  //   undefined,
-  //   async ({ remId }) => {
-  //     await updateTaskInspector(remId);
-  //   });
-
+  // update task overview when widget loaded
   useEffect(() => {
-    const asyncFunc = async () => {
-      const focusedPaneId = await plugin.window.getFocusedPaneId();
-      const openRemId = await plugin.window.getOpenPaneRemId(focusedPaneId);
-      await updateTaskInspector(openRemId!);
-    };
+    updateTaskOverview().then().catch(console.error);
+  }, []);
 
-    asyncFunc().then().catch(console.error);
-  })
+  // update task overview when receive message about task
+  useAPIEventListener(
+    AppEvents.MessageBroadcast,
+    undefined,
+    async ({ message }) => {
+      if (message.type == 'task')
+        await updateTaskOverview();
+    });
+
+  const Tasks = (props: any) => {
+    return (
+      <div
+        /* only display when there are such tasks */
+        style={{ display: !props.display  || props.display.length == 0 ? 'none' : 'block' }}
+      >
+        <div className="task-overview-title">{ props.title }</div>
+        <ol
+          className="task-overview-tasks"
+        >
+          {
+            props.rems?.map((rem: Rem, idx: number) => {
+              return (
+                <li
+                  className="task-overview-task"
+                  onClick={async () => {
+                    await plugin.window.openRem(rem);
+                  }}
+                >
+                  <RemViewer
+                    key={ idx }
+                    remId={ rem._id }
+                    width={ '100%' }
+                  ></RemViewer>
+                </li>
+              );
+            })
+          }
+        </ol>
+      </div>
+    );
+  }
 
   return (
     <div className="rn-plugin rn-card flex flex-col mb-2 bg-white">
       <div
         className="rn-card__header flex items-center flex-shrink-0 gap-2 p-2 text-lg font-semibold"
         style={{ display: 'inline-block' }}
-      >Task Inspector</div>
+      >Task Overview</div>
       <div className="rn-card__content flex flex-col gap-2 p-2">
-        { timeLogHtml }
+        <Tasks title={ 'Now' } display={ targets?.now } rems={ targets?.now }></Tasks>
+        <Tasks title={ 'Ready' } display={ targets?.ready } rems={ targets?.ready }></Tasks>
+        <Tasks title={ 'Scheduled' } display={ targets?.scheduled } rems={ targets?.scheduled }></Tasks>
       </div>
     </div>
   );
 }
+
+// const TaskInspector = () => {
+//   const plugin = usePlugin();
+//
+//   const [timeLogHtml, setTimeLogHtml] = useState(<></>)
+//
+//   const updateTaskInspector = async (remId: RemId) => {
+//     const openRem = (await plugin.rem.findOne(remId))!;
+//     if (await isTaskRem(openRem)) {
+//       const powerupMap = await getPowerupProperties(openRem, plugin);
+//       if (powerupMap.has('Time Log')) {
+//         const rem: Rem = powerupMap.get('Time Log');
+//         const timeLog = await plugin.richText.toString(rem.backText!);
+//         const regTimeLog = /\[(?<time>\d{1,2}\/\d{1,2}\/\d{4}, \d{1,2}:\d{1,2}:\d{1,2} (?:AM|PM))\]\s*(?<fromStatus>\w*)\s*(?:→\s*(?<toStatus>\w*))?/;
+//         const _timeLogHtml: JSX.Element[] = [];
+//         for (const row of timeLog.split('\n')) {
+//           const matchTimeLog = regTimeLog.exec(row);
+//           if (matchTimeLog) {
+//             const { time, fromStatus, toStatus } = matchTimeLog.groups!;
+//             const _li: JSX.Element[] = [];
+//             _li.push(<span style={{ color: 'gray' }}>[{ time }] </span>);
+//             _li.push(status2colorfulHtml(fromStatus));
+//             if (toStatus) {
+//               _li.push(<span>{ ' >>> ' }</span>)
+//               _li.push(status2colorfulHtml(toStatus));
+//             }
+//             _timeLogHtml.push(<li>{ _li }</li>)
+//           }
+//         }
+//         setTimeLogHtml(<ol className="gtd-log-row">{ _timeLogHtml }</ol> );
+//       }
+//     }
+//   }
+//
+//   // plugin.event.addListener(
+//   //   AppEvents.GlobalOpenRem,
+//   //   undefined,
+//   //   async ({ remId }) => {
+//   //     await updateTaskInspector(remId);
+//   //   });
+//
+//   useEffect(() => {
+//     const asyncFunc = async () => {
+//       const focusedPaneId = await plugin.window.getFocusedPaneId();
+//       const openRemId = await plugin.window.getOpenPaneRemId(focusedPaneId);
+//       await updateTaskInspector(openRemId!);
+//     };
+//
+//     asyncFunc().then().catch(console.error);
+//   })
+//
+//   return (
+//     <div className="rn-plugin rn-card flex flex-col mb-2 bg-white">
+//       <div
+//         className="rn-card__header flex items-center flex-shrink-0 gap-2 p-2 text-lg font-semibold"
+//         style={{ display: 'inline-block' }}
+//       >Task Inspector</div>
+//       <div className="rn-card__content flex flex-col gap-2 p-2">
+//         { timeLogHtml }
+//       </div>
+//     </div>
+//   );
+// }
 
 const decHms = (hms: number[]) => {
   if (hms[2] > 0) return [hms[0], hms[1], hms[2] - 1];
@@ -350,15 +442,15 @@ const decHms = (hms: number[]) => {
   else throw Error('Invalid hms ' + hms);
 }
 
-const status2colorfulHtml = (status: string) => {
-  switch (status) {
-    case 'Scheduled': return <span>Scheduled</span>;
-    case 'Ready':     return <span style={{ color: 'blue' }}>Ready</span>;
-    case 'Now':       return <span style={{ color: 'red' }}>Now</span>;
-    case 'Done':      return <span style={{ color: 'green' }}>Done</span>;
-    case 'Cancelled': return <span>Cancelled</span>;
-  }
-  return <></>
-}
+// const status2colorfulHtml = (status: string) => {
+//   switch (status) {
+//     case 'Scheduled': return <span>Scheduled</span>;
+//     case 'Ready':     return <span style={{ color: 'blue' }}>Ready</span>;
+//     case 'Now':       return <span style={{ color: 'red' }}>Now</span>;
+//     case 'Done':      return <span style={{ color: 'green' }}>Done</span>;
+//     case 'Cancelled': return <span>Cancelled</span>;
+//   }
+//   return <></>
+// }
 
 renderWidget(SideBarWidget);

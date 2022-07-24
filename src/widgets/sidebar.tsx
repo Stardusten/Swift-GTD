@@ -8,7 +8,7 @@ import {
   useTracker,
 } from '@remnote/plugin-sdk';
 import { SetStateAction, useEffect, useRef, useState } from 'react';
-import { getPowerupProperties, isTaskRem, newTask, prevCheck, toggleTaskStatus } from '../utils/gtd';
+import { getPowerupProperties, getTimeLogRootRem, isTaskRem, newTask, prevCheck, toggleTaskStatus } from '../utils/gtd';
 import { getFocusedRem } from '../utils/rem';
 
 const SideBarWidget = () => {
@@ -31,6 +31,7 @@ const SideBarWidget = () => {
       <TaskToggleQuickAccess></TaskToggleQuickAccess>
       <Pomodoro></Pomodoro>
       <TaskOverview></TaskOverview>
+      <TimeLog></TimeLog>
     </div>
   );
 }
@@ -320,7 +321,7 @@ const TaskOverview = () => {
     AppEvents.MessageBroadcast,
     undefined,
     async ({ message }) => {
-      if (message.type == 'task')
+      if (message.type == 'task' || message.type == 'taskNew')
         await updateTaskOverview();
     });
 
@@ -331,28 +332,27 @@ const TaskOverview = () => {
         style={{ display: !props.display  || props.display.length == 0 ? 'none' : 'block' }}
       >
         <div className="task-overview-title">{ props.title }</div>
-        <ol
+        <div
           className="task-overview-tasks"
         >
           {
             props.rems?.map((rem: Rem, idx: number) => {
               return (
-                <li
+                <div
                   className="task-overview-task"
-                  onClick={async () => {
+                  onClick={ async () => {
                     await plugin.window.openRem(rem);
                   }}
                 >
                   <RemViewer
-                    key={ idx }
-                    remId={ rem._id }
-                    width={ '100%' }
+                    remId={rem._id}
+                    width="100%"
                   ></RemViewer>
-                </li>
+                </div>
               );
             })
           }
-        </ol>
+        </div>
       </div>
     );
   }
@@ -361,12 +361,71 @@ const TaskOverview = () => {
     <div className="rn-plugin rn-card flex flex-col mb-2 bg-white">
       <div
         className="rn-card__header flex items-center flex-shrink-0 gap-2 p-2 text-lg font-semibold"
-        style={{ display: 'inline-block' }}
-      >Task Overview</div>
+        style={{ display: 'inline-flex' }}
+      >
+        <span>Task Overview</span>
+        <div /* refresh button */
+          className="icon-button inline-block ml-auto hover:rn-clr-background--hovered cursor-pointer rounded object-contain max-w-fit box-border p-0.5"
+          onClick={ updateTaskOverview }
+        >
+          <svg fill="currentColor" viewBox="0 0 20 20" data-icon="reload" className="inline-block"
+               style={{ width: '20px', minWidth: '20px', height: '20px', minHeight: '20px', display: 'block'}}>
+            <path d="M10.435 1.66979C5.83697 1.54306 2.07004 5.24522 2.07004 9.81635H0.453057C0.0465531 9.81635 -0.152182 10.3051 0.136887 10.5858L2.65721 13.1112C2.83788 13.2922 3.11791 13.2922 3.29858 13.1112L5.8189 10.5858C6.09894 10.3051 5.9002 9.81635 5.4937 9.81635H3.87672C3.87672 6.28617 6.74934 3.43488 10.2904 3.48013C13.6509 3.52539 16.4783 6.35859 16.5235 9.72584C16.5687 13.2651 13.7231 16.1526 10.2001 16.1526C9.07093 16.1526 8.01402 15.8448 7.09261 15.3289C6.74031 15.1297 6.30671 15.2021 6.02667 15.4918C5.61114 15.9082 5.69244 16.6233 6.20734 16.9129C7.39072 17.5737 8.74573 17.9629 10.2001 17.9629C14.762 17.9629 18.4566 14.1883 18.3302 9.58101C18.2127 5.33574 14.6716 1.78746 10.435 1.66979Z"></path>
+          </svg>
+        </div>
+      </div>
       <div className="rn-card__content flex flex-col gap-2 p-2">
         <Tasks title={ 'Now' } display={ targets?.now } rems={ targets?.now }></Tasks>
         <Tasks title={ 'Ready' } display={ targets?.ready } rems={ targets?.ready }></Tasks>
         <Tasks title={ 'Scheduled' } display={ targets?.scheduled } rems={ targets?.scheduled }></Tasks>
+      </div>
+    </div>
+  );
+}
+
+const TimeLog = () => {
+
+  const plugin = usePlugin();
+
+  const [timeLogRootRemId, setTimeLogRootRemId]: any = useState();
+
+  return (
+    <div className="rn-plugin rn-card flex flex-col mb-2 bg-white">
+      <div
+        className="rn-card__header flex items-center flex-shrink-0 gap-2 p-2 text-lg font-semibold"
+        style={{ display: 'inline-flex' }}
+      >
+        <div>Time Log</div>
+        <div /* refresh button */
+          className="icon-button inline-block ml-auto hover:rn-clr-background--hovered cursor-pointer rounded object-contain max-w-fit box-border p-0.5"
+          onClick={ async () => {
+            await prevCheck(plugin,
+            async (plugin: RNPlugin, focusedRem: Rem) => {
+                const timeLogRootRem = await getTimeLogRootRem(focusedRem, plugin);
+                if (timeLogRootRem)
+                  setTimeLogRootRemId(timeLogRootRem._id);
+                else setTimeLogRootRemId(null);
+              },
+              async () => { setTimeLogRootRemId(null) }
+              );
+          }}
+        >
+          <svg fill="currentColor" viewBox="0 0 20 20" data-icon="reload" className="inline-block"
+               style={{ width: '20px', minWidth: '20px', height: '20px', minHeight: '20px', display: 'block'}}>
+            <path d="M10.435 1.66979C5.83697 1.54306 2.07004 5.24522 2.07004 9.81635H0.453057C0.0465531 9.81635 -0.152182 10.3051 0.136887 10.5858L2.65721 13.1112C2.83788 13.2922 3.11791 13.2922 3.29858 13.1112L5.8189 10.5858C6.09894 10.3051 5.9002 9.81635 5.4937 9.81635H3.87672C3.87672 6.28617 6.74934 3.43488 10.2904 3.48013C13.6509 3.52539 16.4783 6.35859 16.5235 9.72584C16.5687 13.2651 13.7231 16.1526 10.2001 16.1526C9.07093 16.1526 8.01402 15.8448 7.09261 15.3289C6.74031 15.1297 6.30671 15.2021 6.02667 15.4918C5.61114 15.9082 5.69244 16.6233 6.20734 16.9129C7.39072 17.5737 8.74573 17.9629 10.2001 17.9629C14.762 17.9629 18.4566 14.1883 18.3302 9.58101C18.2127 5.33574 14.6716 1.78746 10.435 1.66979Z"></path>
+          </svg>
+        </div>
+      </div>
+      <div className="rn-card__content flex flex-col gap-2 p-2">
+        {
+          timeLogRootRemId &&
+          <div className="gtd-time-log">
+            <RemHierarchyEditorTree
+              remId={ timeLogRootRemId }
+              width="100%"
+            ></RemHierarchyEditorTree>
+          </div>
+        }
       </div>
     </div>
   );

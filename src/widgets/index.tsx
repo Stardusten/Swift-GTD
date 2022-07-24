@@ -10,6 +10,7 @@ import {
 import '../style.css';
 import '../App.css';
 import {
+  addTimeLog,
   genAsciiProgressBar, getPowerupProperties, getPowerupProperty, getStatusName,
   isTaskRem,
   newTask, padStatusName, prevCheck, setStatus, toggleTaskStatus, updateRemTreeProgress,
@@ -64,7 +65,6 @@ async function onActivate(plugin: ReactRNPlugin) {
         { code: 'status', name: 'Status' },
         { code: 'dateDue', name: 'Date Due'},
         { code: 'priority', name: 'Priority'},
-        { code: 'timeLog', name: 'timeLog' },
         { code: 'progress', name: 'Progress' }
       ],
     }
@@ -75,7 +75,14 @@ async function onActivate(plugin: ReactRNPlugin) {
     'automaticallyDone',
     'If a task is tagged with this powerup, then when all of its subtasks are finished, it will toggle to "Done" status automatically.',
     { slots: [] }
-  )
+  );
+
+  await plugin.app.registerPowerup(
+    'Time Log',
+    'timeLog',
+    'All the time logs',
+    { slots: [] }
+  );
 
   for (const statusName of ['Done', 'Now', 'Ready', 'Scheduled', 'Cancelled']) {
     await plugin.app.registerPowerup(
@@ -189,9 +196,8 @@ async function onActivate(plugin: ReactRNPlugin) {
       await setStatus(taskRem, toStatus, plugin);
 
       // add log
-      let timeLog = await taskRem.getPowerupProperty('taskPowerup', 'timeLog');
-      timeLog += `\n[${new Date().toLocaleString()}]   ${padStatusName(fromStatus)}   →   ${padStatusName(toStatus)}`;
-      await taskRem.setPowerupProperty('taskPowerup', 'timeLog', [timeLog]);
+      const newTimeLog = await plugin.richText.parseFromMarkdown(`[${new Date().toLocaleString()}] from **${fromStatus}** to **${toStatus}**`);
+      await addTimeLog(newTimeLog, taskRem, plugin);
 
       // update proress bar
       for await (const rem of successors(taskRem)) {

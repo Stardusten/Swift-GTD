@@ -1,7 +1,7 @@
 import { Rem, RemId, RNPlugin } from '@remnote/plugin-sdk';
 import { TaskStatus, TodoTask, TodoTaskList } from '@microsoft/microsoft-graph-types';
 import { Client } from '@microsoft/microsoft-graph-client';
-import { getStatusName, padStatusName, setStatus } from './gtd';
+import { addTimeLog, getStatusName, padStatusName, setStatus } from './gtd';
 
 export const normalSync = async (graphClient: Client, taskList: TodoTaskList ,plugin: RNPlugin) => {
 
@@ -48,9 +48,8 @@ export const normalSync = async (graphClient: Client, taskList: TodoTaskList ,pl
             await setStatus(taskRem, newRnStatus, plugin);
 
             // add log
-            let timeLog = await taskRem.getPowerupProperty('taskPowerup', 'timeLog');
-            timeLog += `\n[${new Date().toLocaleString()}]   ${padStatusName(nowRnStatus)}   →   ${padStatusName(newRnStatus)}`;
-            await taskRem.setPowerupProperty('taskPowerup', 'timeLog', [timeLog]);
+            const newTimeLog = `[${new Date().toLocaleString()}]   ${padStatusName(nowRnStatus)}   →   ${padStatusName(newRnStatus)}`;
+            await addTimeLog([newTimeLog], taskRem, plugin);
           } else {
             // update task in Microsoft TO DO
             const updateRequest = {
@@ -76,9 +75,8 @@ export const normalSync = async (graphClient: Client, taskList: TodoTaskList ,pl
       await setStatus(newTaskRem, status, plugin);
 
       // add log
-      let timeLog = await newTaskRem.getPowerupProperty('taskPowerup', 'timeLog');
-      timeLog += `\n[${new Date(task.lastModifiedDateTime!).toLocaleString()}]   ${padStatusName(status)}`;
-      await newTaskRem.setPowerupProperty('taskPowerup', 'timeLog', [timeLog]);
+      const newTimeLog = `[${new Date(task.lastModifiedDateTime!).toLocaleString()}]   ${padStatusName(status)}`;
+      await addTimeLog([newTimeLog], newTaskRem, plugin);
 
       // TODO add to daily document according to its createDate
       // const dailyDocument = await getDailyDocumentAt(createDate, plugin);

@@ -1,6 +1,8 @@
 import { Rem, RemId, RichTextInterface, RNPlugin, usePlugin } from '@remnote/plugin-sdk';
 import { getFocusedRem, successors } from './rem';
 
+export declare type StatusName = 'Scheduled' | 'Ready' | 'Now' | 'Done' | 'Cancelled';
+
 const getDateDuration = (date1: Date, date2: Date) => {
   const diffDate = new Date(date2.getTime() - date1.getTime());
 
@@ -22,6 +24,10 @@ const getDateDuration = (date1: Date, date2: Date) => {
   return result;
 }
 
+/**
+ * Determine whether a rem is task or not.
+ * @param rem
+ */
 export const isTaskRem = async (rem: Rem) => {
   return await rem.hasPowerup('taskPowerup');
 }
@@ -35,14 +41,66 @@ export const genAsciiProgressBar = (percentage: number, progressBarSymbol: strin
     progressBarSymbol[1].repeat(10 - countSymbol);
 }
 
-export const setStatus = async (rem: Rem, statusName: string, plugin: RNPlugin) => {
+/**
+ * Set status of a task rem.
+ * @param rem
+ * @param statusName
+ * @param plugin
+ */
+export const setStatus = async (rem: Rem, statusName: StatusName, plugin: RNPlugin) => {
   const statusPowerupRemRef = await plugin.richText.parseFromMarkdown(`[[${statusName}]]`);
   await rem.setPowerupProperty('taskPowerup', 'status', statusPowerupRemRef);
 };
 
+/**
+ * Get status name of a task rem.
+ * @param rem
+ */
 export const getStatusName = async (rem: Rem) => {
   const statusSlot = await rem.getPowerupProperty('taskPowerup', 'status');
   return statusSlot.trim();
+}
+
+export const getTimeLogRootRem = async (rem: Rem, plugin: RNPlugin) => {
+  const refs = await rem.remsReferencingThis();
+  const timeLogPowerup = (await plugin.powerup.getPowerupByCode('timeLog'))!;
+  for (const ref of refs) {
+    const parentRem = await ref.getParentRem();
+    if (parentRem?._id == timeLogPowerup._id)
+      return ref;
+  }
+}
+
+/**
+ * Add a timelog of a task.
+ * Attention:
+ *   - only call this function on a task!
+ *   - each timelog is a **card**, front should be timestamp, back should be message.
+ */
+export const addTimeLog = async (front: RichTextInterface, rem: Rem, plugin: RNPlugin, back?: RichTextInterface) => {
+  let timeLogRootRem = await getTimeLogRootRem(rem, plugin);
+  const timeLogPowerup = (await plugin.powerup.getPowerupByCode('timeLog'))!;
+  if (!timeLogRootRem) {
+    // not exist? create one
+    timeLogRootRem = (await plugin.rem.createRem())!;
+    // add reference to rem
+    const text = plugin.richText.rem(rem._id).value();
+    await timeLogRootRem.setText(text);
+    // move to timeLog
+    await timeLogRootRem.setParent(timeLogPowerup._id);
+  }
+
+  const newTimeLog = await plugin.rem.createRem();
+  await newTimeLog?.setText(front);
+
+  // if back content is provided
+  if (back) {
+    await newTimeLog?.setIsCardItem(true);
+    await newTimeLog?.setBackText(back);
+  }
+
+  await newTimeLog?.setParent(timeLogRootRem._id);
+  await timeLogRootRem.setIsCardItem(false); // XXX
 }
 
 export const padStatusName = (statusName: string) => {
@@ -116,15 +174,17 @@ export const newTask = async (plugin: RNPlugin) => {
       await setStatus(focusedRem, 'Scheduled', plugin);
 
       // add create log
-      let timeLog = `\n[${new Date().toLocaleString()}]   Scheduled`;
-      await focusedRem.setPowerupProperty('taskPowerup', 'timeLog', [timeLog]);
+      let newTimeLog = await plugin.richText.parseFromMarkdown(`[${new Date().toLocaleString()}]   create new, **Scheduled**`);
+      await addTimeLog(newTimeLog, focusedRem, plugin);
 
       // handle progress bar
       await newTaskProgressUpdate(focusedRem, plugin);
 
-      // hide Time Log powerups
-      // const timeLogRem = await getPowerupProperty(focusedRem, 'Time Log', plugin);
-      // await timeLogRem?.setHiddenExplicitlyIncludedState('hidden');
+      // send message
+      await plugin.messaging.broadcast({
+        type: 'taskNew',
+        remId: focusedRem._id
+      });
   });
 }
 

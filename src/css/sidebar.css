@@ -52,3 +52,8 @@
     list-style: inherit;
     margin-left: 2em;
 }
+
+.gtd-time-log {
+    margin-top: -1em;
+    margin-left: 0.2em;
+}

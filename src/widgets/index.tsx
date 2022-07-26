@@ -1,22 +1,19 @@
-import {
-  AppEvents,
-  declareIndexPlugin,
-  ReactRNPlugin,
-  Rem,
-  RNPlugin,
-  usePlugin,
-  WidgetLocation,
-} from '@remnote/plugin-sdk';
+import { AppEvents, declareIndexPlugin, ReactRNPlugin, Rem, RNPlugin, WidgetLocation } from '@remnote/plugin-sdk';
 import '../style.css';
 import '../App.css';
 import {
   addTimeLog,
-  genAsciiProgressBar, getPowerupProperties, getPowerupProperty, getStatusName,
+  genAsciiProgressBar,
+  getPowerupProperty,
+  getStatusName,
   isTaskRem,
-  newTask, padStatusName, prevCheck, setStatus, toggleTaskStatus, updateRemTreeProgress,
+  newTask,
+  prevCheck,
+  setStatus,
+  toggleTaskStatus,
+  updateRemTreeProgress,
 } from '../utils/gtd';
-import { getFocusedRem, successors } from '../utils/rem';
-import '../css/sidebar.css';
+import { successors } from '../utils/rem';
 
 async function onActivate(plugin: ReactRNPlugin) {
 
@@ -54,6 +51,28 @@ async function onActivate(plugin: ReactRNPlugin) {
       },
       widgetTabIcon: 'https://emojipedia-us.s3.dualstack.us-west-1.amazonaws.com/thumbs/120/microsoft/310/direct-hit_1f3af.png',
     },
+  );
+
+  await plugin.app.registerWidget(
+    'task_peeker',
+    WidgetLocation.RightSideOfEditor,
+    {
+      dimensions: {
+        height: 'auto',
+        width: 22,
+      },
+    }
+  );
+
+  await plugin.app.registerWidget(
+    'popup_timelog_viewer',
+    WidgetLocation.FloatingWidget,
+    {
+      dimensions: {
+        height: 'auto',
+        width: 400
+      }
+    }
   );
 
   await plugin.app.registerPowerup(
@@ -179,6 +198,11 @@ async function onActivate(plugin: ReactRNPlugin) {
       // make sure there only one NOW task at the same time
       const nowTaskRemId = await plugin.storage.getSynced('nowTaskRemId') as string;
 
+      // if recorded now task rem is removed
+      const nowTaskRem = await plugin.rem.findOne(nowTaskRemId);
+      if (!nowTaskRem)
+        await plugin.storage.setSynced('nowTaskRemId', null);
+
       if (toStatus == 'Now') {
         if (nowTaskRemId) {
           await plugin.app.toast('Only one NOW task at the same time');
@@ -196,7 +220,7 @@ async function onActivate(plugin: ReactRNPlugin) {
       await setStatus(taskRem, toStatus, plugin);
 
       // add log
-      const newTimeLog = await plugin.richText.parseFromMarkdown(`[${new Date().toLocaleString()}] from **${fromStatus}** to **${toStatus}**`);
+      const newTimeLog = await plugin.richText.parseFromMarkdown(`[${new Date().toLocaleString()}]   from **${fromStatus}** to **${toStatus}**`);
       await addTimeLog(newTimeLog, taskRem, plugin);
 
       // update proress bar

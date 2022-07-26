@@ -9,7 +9,6 @@ import {
 } from '@remnote/plugin-sdk';
 import { SetStateAction, useEffect, useRef, useState } from 'react';
 import { getPowerupProperties, getTimeLogRootRem, isTaskRem, newTask, prevCheck, toggleTaskStatus } from '../utils/gtd';
-import { getFocusedRem } from '../utils/rem';
 
 const SideBarWidget = () => {
   return (

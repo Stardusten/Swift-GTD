@@ -7,7 +7,7 @@
     text-align: center;
     color: #9ca3af;
     flex-grow: 1;
-    transition: all 70ms linear;
+    transition: all 70ms cubic-bezier(0.4, 0, 0.2, 1);
     margin: 0 0.3em;
     cursor: pointer;
 }
@@ -65,6 +65,11 @@
     text-align: center;
     height: 18px;
     width: 18px;
+    transition: all 100ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.task-peeker:hover {
+    width: 100px;
 }
 
 .popup-timelog-viewer {

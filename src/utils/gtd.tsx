@@ -84,8 +84,10 @@ export const addTimeLog = async (front: RichTextInterface, rem: Rem, plugin: RNP
     // not exist? create one
     timeLogRootRem = (await plugin.rem.createRem())!;
     // add reference to rem
-    const text = plugin.richText.rem(rem._id).value();
-    await timeLogRootRem.setText(text);
+    // const text = plugin.richText.rem(rem._id).value();
+    // console.log(rem._id);
+    // console.log(text);
+    await timeLogRootRem.setText([{i: 'q', _id: rem._id}]);
     // move to timeLog
     await timeLogRootRem.setParent(timeLogPowerup._id);
   }
@@ -115,7 +117,17 @@ export const padStatusName = (statusName: string) => {
   }
 }
 
-export const toggleTaskStatus = async (plugin: RNPlugin, toStatus: string) => {
+export const toggleTaskStatus = async (plugin: RNPlugin, toStatus: string, taskRem: Rem) => {
+  // await plugin.messaging.broadcast(`task:${focusedRem._id}:${await getStatusName(focusedRem)}:${toStatus}`);
+  await plugin.messaging.broadcast({
+    type: 'task',
+    remId: taskRem._id,
+    fromStatus: await getStatusName(taskRem),
+    toStatus
+  });
+}
+
+export const toggleFocusedTaskStatus = async (plugin: RNPlugin, toStatus: string) => {
   const focusedRem = await getFocusedRem(plugin);
 
   if (!focusedRem) {
@@ -128,12 +140,7 @@ export const toggleTaskStatus = async (plugin: RNPlugin, toStatus: string) => {
   }
 
   // await plugin.messaging.broadcast(`task:${focusedRem._id}:${await getStatusName(focusedRem)}:${toStatus}`);
-  await plugin.messaging.broadcast({
-    type: 'task',
-    remId: focusedRem._id,
-    fromStatus: await getStatusName(focusedRem),
-    toStatus
-  });
+  await toggleTaskStatus(plugin, toStatus, focusedRem);
 }
 
 /**

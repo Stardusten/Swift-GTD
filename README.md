@@ -31,10 +31,12 @@ The state transition logic is as follows:
 - 完成一个任务，转换到 Done 状态。
 - 放弃一个任务，转换到 Cancelled 状态。
 
+任务状况可通过右侧悬浮微件查看：微件上的字母为任务状态的首字母。
+
 有两种方法手动转换任务状态：
 
 - 使用指令（通过 Omnibar 或斜杠菜单触发，命名规则为 “Toogle + 要转换到的状态名”）。
-- 使用右侧栏面板中 Quick Access 下面的按钮。
+- 使用右侧悬浮微件
 
 右侧栏面板中 Task Overview 项下，会列出当前处于 Now，Ready 和 Scheduled 状态的所有任务，点击任务项即可跳转到其所在的 rem。
 

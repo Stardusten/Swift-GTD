@@ -10,7 +10,7 @@ import {
   newTask,
   prevCheck,
   setStatus,
-  toggleTaskStatus,
+  toggleFocusedTaskStatus,
   updateRemTreeProgress,
 } from '../utils/gtd';
 import { successors } from '../utils/rem';
@@ -59,13 +59,13 @@ async function onActivate(plugin: ReactRNPlugin) {
     {
       dimensions: {
         height: 'auto',
-        width: 22,
+        width: 'auto',
       },
     }
   );
 
   await plugin.app.registerWidget(
-    'popup_timelog_viewer',
+    'popup_task_pane',
     WidgetLocation.FloatingWidget,
     {
       dimensions: {
@@ -123,35 +123,35 @@ async function onActivate(plugin: ReactRNPlugin) {
     id: 'toggleToScheduled',
     name: 'Toggle To Scheduled',
     quickCode: 'ts',
-    action: async () => { await toggleTaskStatus(plugin, 'Scheduled') }
+    action: async () => { await toggleFocusedTaskStatus(plugin, 'Scheduled') }
   });
 
   await plugin.app.registerCommand({
     id: 'toggleToReady',
     name: 'Toggle To Ready',
     quickCode: 'tr',
-    action: async () => { await toggleTaskStatus(plugin, 'Ready') }
+    action: async () => { await toggleFocusedTaskStatus(plugin, 'Ready') }
   });
 
   await plugin.app.registerCommand({
     id: 'toggleToNow',
     name: 'Toggle To Now',
     quickCode: 'tn',
-    action: async () => { await toggleTaskStatus(plugin, 'Now') }
+    action: async () => { await toggleFocusedTaskStatus(plugin, 'Now') }
   });
 
   await plugin.app.registerCommand({
     id: 'toggleToDone',
     name: 'Toggle To Done',
     quickCode: 'td',
-    action: async () => { await toggleTaskStatus(plugin, 'Done') }
+    action: async () => { await toggleFocusedTaskStatus(plugin, 'Done') }
   });
 
   await plugin.app.registerCommand({
     id: 'toggleToCancelled',
     name: 'Toggle To Cancelled',
     quickCode: 'tc',
-    action: async () => { await toggleTaskStatus(plugin, 'Cancelled') }
+    action: async () => { await toggleFocusedTaskStatus(plugin, 'Cancelled') }
   });
 
   await plugin.app.registerCommand({

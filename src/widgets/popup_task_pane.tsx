@@ -39,7 +39,7 @@ const totalTime = async (taskRem: Rem, plugin: RNPlugin) => {
   return totalTime;
 }
 
-const PopupTimlogViewer = () => {
+const PopupTaskPane = () => {
 
   const plugin = usePlugin();
 
@@ -50,12 +50,12 @@ const PopupTimlogViewer = () => {
       AppEvents.MessageBroadcast,
       undefined,
       async ({ message }) => {
-        if (message.type == 'popup_timelog_viewer_id') {
+        if (message.type == 'popup_task_pane') {
           const taskRemId = message.remId;
           const taskRem = await plugin.rem.findOne(taskRemId);
           const timeLogRootRem = await getTimeLogRootRem(taskRem!, plugin);
           if (timeLogRootRem) {
-            console.log(await totalTime(timeLogRootRem, plugin));
+            // console.log(await totalTime(timeLogRootRem, plugin));
             setTimeLogRootRem(timeLogRootRem);
           }
         }
@@ -81,4 +81,4 @@ const PopupTimlogViewer = () => {
   );
 }
 
-renderWidget(PopupTimlogViewer);
+renderWidget(PopupTaskPane);

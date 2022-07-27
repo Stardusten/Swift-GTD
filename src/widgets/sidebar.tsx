@@ -8,7 +8,7 @@ import {
   useTracker,
 } from '@remnote/plugin-sdk';
 import { SetStateAction, useEffect, useRef, useState } from 'react';
-import { getPowerupProperties, getTimeLogRootRem, isTaskRem, newTask, prevCheck, toggleTaskStatus } from '../utils/gtd';
+import { getPowerupProperties, getTimeLogRootRem, isTaskRem, newTask, prevCheck, toggleFocusedTaskStatus } from '../utils/gtd';
 
 const SideBarWidget = () => {
   return (
@@ -27,10 +27,10 @@ const SideBarWidget = () => {
           fontWeight: 'bold',
         }}
       >Swift GTD</h2>
-      <TaskToggleQuickAccess></TaskToggleQuickAccess>
+      {/*<TaskToggleQuickAccess></TaskToggleQuickAccess>*/}
       <Pomodoro></Pomodoro>
       <TaskOverview></TaskOverview>
-      <TimeLog></TimeLog>
+      {/*<TimeLog></TimeLog>*/}
     </div>
   );
 }
@@ -46,13 +46,13 @@ const TaskToggleQuickAccess = () => {
       <div className="rn-card__content flex flex-col gap-2 p-2">
         <div className="gtd-inline-row">
           <div className="gtd-button" onClick={ async () => { await newTask(plugin) } }>New</div>
-          <div className="gtd-button" onClick={ async () => { await toggleTaskStatus(plugin, 'Scheduled') } }>Scheduled</div>
-          <div className="gtd-button" onClick={ async () => { await toggleTaskStatus(plugin, 'Ready') } }>Ready</div>
+          <div className="gtd-button" onClick={ async () => { await toggleFocusedTaskStatus(plugin, 'Scheduled') } }>Scheduled</div>
+          <div className="gtd-button" onClick={ async () => { await toggleFocusedTaskStatus(plugin, 'Ready') } }>Ready</div>
         </div>
         <div className="gtd-inline-row">
-          <div className="gtd-button" onClick={ async () => { await toggleTaskStatus(plugin, 'Now') } }>Now</div>
-          <div className="gtd-button" onClick={ async () => { await toggleTaskStatus(plugin, 'Done') } }>Done</div>
-          <div className="gtd-button" onClick={ async () => { await toggleTaskStatus(plugin, 'Cancelled') } }>Cancelled</div>
+          <div className="gtd-button" onClick={ async () => { await toggleFocusedTaskStatus(plugin, 'Now') } }>Now</div>
+          <div className="gtd-button" onClick={ async () => { await toggleFocusedTaskStatus(plugin, 'Done') } }>Done</div>
+          <div className="gtd-button" onClick={ async () => { await toggleFocusedTaskStatus(plugin, 'Cancelled') } }>Cancelled</div>
         </div>
       </div>
     </div>
@@ -141,9 +141,6 @@ const Pomodoro = () => {
       AppEvents.MessageBroadcast,
       undefined,
       async ({ message }) => {
-
-        console.log(message);
-
         let { type, remId: _taskRemId } = message;
 
         if (type != 'pomodoroActive')
@@ -151,7 +148,7 @@ const Pomodoro = () => {
 
         const unfinishedPomodoro = await plugin.storage.getSynced('unfinishedPomodoro');
         if (unfinishedPomodoro) {
-          console.log(JSON.stringify(unfinishedPomodoro));
+          // console.log(JSON.stringify(unfinishedPomodoro));
           await plugin.app.toast('You cannot do two pomodoro at the same time!');
           return;
         }

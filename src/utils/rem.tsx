@@ -1,8 +1,7 @@
 import { BuiltInPowerupCodes, Rem, RNPlugin } from '@remnote/plugin-sdk';
 
 export const getFocusedRem = async (plugin: RNPlugin) => {
-  const focusedRemId = await plugin.focus.getFocusedRemId();
-  return focusedRemId ? await plugin.rem.findOne(focusedRemId) : undefined;
+  return await plugin.focus.getFocusedRem();
 }
 
 const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];

@@ -181,7 +181,7 @@ async function onActivate(plugin: ReactRNPlugin) {
     }
   });
 
-  await plugin.event.addListener(
+  plugin.event.addListener(
     AppEvents.MessageBroadcast,
     undefined,
     async ({ message }) => {

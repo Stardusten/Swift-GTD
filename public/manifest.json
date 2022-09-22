@@ -9,8 +9,8 @@
     "minor": 0,
     "patch": 1
   },
+  "enableOnMobile": false,
   "description": "",
-  "authorizedActions": "ReadCreateModifyDelete",
   "requestNative": false,
   "requiredScopes": [
     {

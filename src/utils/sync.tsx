@@ -33,7 +33,7 @@ export const normalSync = async (graphClient: Client, taskList: TodoTaskList ,pl
           // no need to sync!
         } else {
           // determine which side to choose according to last modified time
-          const rnLastUpdateTime = new Date(taskRem.u);
+          const rnLastUpdateTime = new Date(taskRem.updatedAt);
           const msUpdateTime = new Date(task.lastModifiedDateTime!);
           // get now status
           const nowRnStatus = await getStatusName(taskRem);

@@ -1,4 +1,4 @@
-import { AppEvents, Rem, renderWidget, usePlugin } from '@remnote/plugin-sdk';
+import { AppEvents, Rem, renderWidget, usePlugin, WidgetLocation } from '@remnote/plugin-sdk';
 import { useEffect, useRef, useState } from 'react';
 import { getStatusName, isTaskRem, toggleFocusedTaskStatus, toggleTaskStatus } from '../utils/gtd';
 import { getFocusedRem } from '../utils/rem';
@@ -23,7 +23,7 @@ export const TaskPeeker =  () => {
   const [hover, setHover] = useState(false);
 
   const update = async (toStatus?: string) => {
-    const context = await plugin.widget.getWidgetContext();
+    const context = await plugin.widget.getWidgetContext<WidgetLocation.RightSideOfEditor>();
     const remIdWidgetIn = context.remId;
     remWidgetIn.current = (await plugin.rem.findOne(remIdWidgetIn))!;
     if (remWidgetIn.current && await isTaskRem(remWidgetIn.current)) {

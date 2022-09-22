@@ -1,5 +1,7 @@
 # Swift GTD
 
+A "Getting Things Done" Plugin for RemNote.
+
 一个给 RemNote 用的 GTD 插件。
 
 ## Tasks and Status 任务及其状态
@@ -57,7 +59,7 @@ There are two ways to manually toggle status of a task:
 
 ## Time Log
 
-Swift-GTD will tracks each task status transition and automatically generates a timelog.
+Swift-GTD will track each task status transition and automatically generate a timelog.
 
 Swift-GTD 会追踪每个任务的状态变化，并自动生成 timelog。
 

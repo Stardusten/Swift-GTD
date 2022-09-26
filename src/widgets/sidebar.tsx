@@ -213,40 +213,40 @@ const Pomodoro = () => {
             onChange={ (e) => setCdStr(e.target.value) }
             placeholder={'Type cd here: e.g. 2h13min'}
           />
-        <PomodoroButton
-          isPomodoroActive={ timerId }
-          onActiveClick={ async () => {
-            clearTimeout(timerId);
-            // reset restHms
-            setRestHms([0, 0, 0]);
-            setTimerId(null);
-            await plugin.storage.setSynced('unfinishedPomodoro', null);
-            // send notification
-            const noti = new Notification(
-              'A pomodoro is cancelled.',
-              {
-                requireInteraction: true
-              });
-            // notify all listeners that this pomodoro is cancelled
-            plugin.messaging.broadcast({
-              type: 'task',
-              remId: taskRemId,
-              fromStatus: 'Now',
-              toStatus: 'Ready'
-            }).then().catch(console.error);
-          }}
-          onInactiveClick={ async () => {
-            return await prevCheck(
-              plugin,
-              async (plugin: RNPlugin, focusedRem: Rem) => {
-                // await plugin.messaging.broadcast(`pomodoro:active:${focusedRem._id}`);
-                await plugin.messaging.broadcast({
-                  type: 'pomodoroActive',
-                  remId: focusedRem._id,
+          <PomodoroButton
+            isPomodoroActive={ timerId }
+            onActiveClick={ async () => {
+              clearTimeout(timerId);
+              // reset restHms
+              setRestHms([0, 0, 0]);
+              setTimerId(null);
+              await plugin.storage.setSynced('unfinishedPomodoro', null);
+              // send notification
+              const noti = new Notification(
+                'A pomodoro is cancelled.',
+                {
+                  requireInteraction: true
                 });
-            });
-          }}
-        ></PomodoroButton>
+              // notify all listeners that this pomodoro is cancelled
+              plugin.messaging.broadcast({
+                type: 'task',
+                remId: taskRemId,
+                fromStatus: 'Now',
+                toStatus: 'Ready'
+              }).then().catch(console.error);
+            }}
+            onInactiveClick={ async () => {
+              return await prevCheck(
+                plugin,
+                async (plugin: RNPlugin, focusedRem: Rem) => {
+                  // await plugin.messaging.broadcast(`pomodoro:active:${focusedRem._id}`);
+                  await plugin.messaging.broadcast({
+                    type: 'pomodoroActive',
+                    remId: focusedRem._id,
+                  });
+                });
+            }}
+          ></PomodoroButton>
         </div>
       </div>
     </div>
@@ -317,8 +317,10 @@ const TaskOverview = () => {
     AppEvents.MessageBroadcast,
     undefined,
     async ({ message }) => {
-      if (message.type == 'task' || message.type == 'taskNew')
-        await updateTaskOverview();
+      setTimeout(async () => {
+        if (message.type == 'task' || message.type == 'taskNew')
+          await updateTaskOverview();
+      }, 200);
     });
 
   const Tasks = (props: any) => {
@@ -396,14 +398,14 @@ const TimeLog = () => {
           className="icon-button inline-block ml-auto hover:rn-clr-background--hovered cursor-pointer rounded object-contain max-w-fit box-border p-0.5"
           onClick={ async () => {
             await prevCheck(plugin,
-            async (plugin: RNPlugin, focusedRem: Rem) => {
+              async (plugin: RNPlugin, focusedRem: Rem) => {
                 const timeLogRootRem = await getTimeLogRootRem(focusedRem, plugin);
                 if (timeLogRootRem)
                   setTimeLogRootRemId(timeLogRootRem._id);
                 else setTimeLogRootRemId(null);
               },
               async () => { setTimeLogRootRemId(null) }
-              );
+            );
           }}
         >
           <svg fill="currentColor" viewBox="0 0 20 20" data-icon="reload" className="inline-block"

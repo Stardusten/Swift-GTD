@@ -17,6 +17,7 @@ import { successors } from '../utils/rem';
 
 async function onActivate(plugin: ReactRNPlugin) {
 
+  //////////////////////////////////////////////////// Settings ////////////////////////////////////////////////////////
   await plugin.settings.registerStringSetting({
     id: 'clientID',
     title: 'Application (client) ID',
@@ -39,7 +40,9 @@ async function onActivate(plugin: ReactRNPlugin) {
     id: 'defaultPomodoroTime',
     title: 'Default Pomodoro Time',
     defaultValue: '30min',
-  })
+  });
+
+  ///////////////////////////////////////////////// Widgets ////////////////////////////////////////////////////////////
 
   await plugin.app.registerWidget(
     'sidebar',
@@ -74,6 +77,8 @@ async function onActivate(plugin: ReactRNPlugin) {
       }
     }
   );
+
+  /////////////////////////////////////////////////// Powerups ////////////////////////////////////////////////////////
 
   await plugin.app.registerPowerup(
     'Task',
@@ -111,6 +116,8 @@ async function onActivate(plugin: ReactRNPlugin) {
       { slots: [] }
     );
   }
+
+  ////////////////////////////////////////////////// Commands //////////////////////////////////////////////////////////
 
   await plugin.app.registerCommand({
     id: 'NewTask',
@@ -293,7 +300,7 @@ async function onActivate(plugin: ReactRNPlugin) {
       await plugin.app.toast('[Swift GTD] Get notification permission successfully.');
     else
       return;
-      // await plugin.app.toast('[Swift GTD] Failed to get notification permission. Please make sure the plugin is running in native mode');
+    // await plugin.app.toast('[Swift GTD] Failed to get notification permission. Please make sure the plugin is running in native mode');
   });
 
   /**
